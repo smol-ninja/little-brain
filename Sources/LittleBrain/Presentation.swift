@@ -45,7 +45,11 @@ enum PanelMetrics {
     static let sectionSpacing: CGFloat = 8
 
     static func height(for count: Int) -> CGFloat {
-        headerHeight + footerHeight + sectionHeaderHeight * 2 + sectionSpacing + listInset * 2 + CGFloat(min(count, 8)) * rowHeight
+        headerHeight + footerHeight + sectionHeaderHeight * 2 + sectionSpacing + listInset * 2 + CGFloat(count) * rowHeight
+    }
+
+    static func rowCapacity(for height: CGFloat) -> Int {
+        max(1, Int(floor((height - self.height(for: 0)) / rowHeight)))
     }
 }
 
@@ -64,24 +68,32 @@ private struct BrainView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var pageIndex = 0
 
     var body: some View {
+        GeometryReader { geometry in
+            let pages = monitor.snapshot.pages(rowLimit: PanelMetrics.rowCapacity(for: geometry.size.height))
+            let current = min(pageIndex, pages.count - 1)
+            panel(page: pages[current], index: current, pageCount: pages.count)
+                .onChange(of: pages.count) { _, count in pageIndex = min(pageIndex, count - 1) }
+        }
+    }
+
+    private func panel(page: ChatPage, index: Int, pageCount: Int) -> some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 20)
                 .frame(height: PanelMetrics.headerHeight)
 
-            ScrollView {
-                LazyVStack(spacing: PanelMetrics.sectionSpacing) {
-                    ChatSection(title: "Ready for review", rows: monitor.snapshot.reviewOutline) { id in
-                        monitor.open(id); dismiss()
-                    }
-                    ChatSection(title: "Running", rows: monitor.snapshot.runningOutline) { id in
-                        monitor.open(id); dismiss()
-                    }
-                }.padding(PanelMetrics.listInset)
-            }
-            .scrollIndicators(.hidden)
+            VStack(spacing: PanelMetrics.sectionSpacing) {
+                ChatSection(title: "Ready for review", count: monitor.snapshot.reviewRows.count, rows: page.review) { id in
+                    monitor.open(id); dismiss()
+                }
+                ChatSection(title: "Running", count: monitor.snapshot.runningRows.count, rows: page.running) { id in
+                    monitor.open(id); dismiss()
+                }
+            }.padding(PanelMetrics.listInset)
+            .frame(maxHeight: .infinity, alignment: .top)
             .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 17))
             .overlay {
                 RoundedRectangle(cornerRadius: 17)
@@ -90,7 +102,7 @@ private struct BrainView: View {
             }
             .padding(.horizontal, 12)
 
-            footer
+            footer(index: index, pageCount: pageCount)
                 .padding(.horizontal, 20)
                 .frame(height: PanelMetrics.footerHeight)
         }
@@ -153,13 +165,28 @@ private struct BrainView: View {
         }
     }
 
-    private var footer: some View {
+    private func footer(index: Int, pageCount: Int) -> some View {
         HStack(spacing: 8) {
             Text("Launch at login")
                 .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
             Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                 .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
             Spacer()
+            if pageCount > 1 {
+                Button { pageIndex = index - 1 } label: {
+                    Image(systemName: "chevron.left").frame(width: 24, height: 28)
+                }
+                .disabled(index == 0)
+                .accessibilityLabel("Previous chats")
+                Text("\(index + 1) / \(pageCount)")
+                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
+                    .accessibilityLabel("Page \(index + 1) of \(pageCount)")
+                Button { pageIndex = index + 1 } label: {
+                    Image(systemName: "chevron.right").frame(width: 24, height: 28)
+                }
+                .disabled(index == pageCount - 1)
+                .accessibilityLabel("Next chats")
+            }
             Button { NSApp.terminate(nil) } label: {
                 Image(systemName: "power")
                     .font(.system(size: 12, weight: .medium))
@@ -173,6 +200,8 @@ private struct BrainView: View {
             .accessibilityLabel("Quit littlebrain")
             .help("Quit littlebrain")
         }
+        .buttonStyle(PanelControlStyle())
+        .font(.system(size: 11, weight: .medium))
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -189,6 +218,7 @@ private struct BrainView: View {
 
 private struct ChatSection: View {
     let title: String
+    let count: Int
     let rows: [ChatOutlineRow]
     let open: (ChatID) -> Void
 
@@ -197,7 +227,7 @@ private struct ChatSection: View {
             HStack {
                 Text(title).font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text("\(rows.filter { $0.chat != nil }.count)").font(.system(size: 10, weight: .medium)).monospacedDigit()
+                Text("\(count)").font(.system(size: 10, weight: .medium)).monospacedDigit()
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)

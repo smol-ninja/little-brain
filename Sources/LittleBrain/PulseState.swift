@@ -82,6 +82,12 @@ struct ChatOutlineRow: Equatable, Identifiable {
     var id: ChatID { context.id }
 }
 
+struct ChatPage {
+    var review: [ChatOutlineRow] = []
+    var running: [ChatOutlineRow] = []
+    var count: Int { review.count + running.count }
+}
+
 struct PulseSnapshot: Equatable, Sendable {
     let rows: [TrackedChat]
     let health: SourceHealth
@@ -97,6 +103,30 @@ struct PulseSnapshot: Equatable, Sendable {
     var totalCount: Int { rows.count }
     var isFresh: Bool { health.isLive && rows.allSatisfy(\.isFresh) }
     var menuLabel: String { isFresh ? "\(readyCount)/\(totalCount)" : "—/\(totalCount)" }
+
+    func pages(rowLimit: Int) -> [ChatPage] {
+        let limit = max(1, rowLimit)
+        var result: [ChatPage] = []
+        var page = ChatPage()
+        for (rows, key) in [(reviewOutline, \ChatPage.review), (runningOutline, \ChatPage.running)] {
+            var ancestors: [ChatOutlineRow] = []
+            for row in rows {
+                ancestors.removeAll { $0.depth >= row.depth }
+                if page.count == limit {
+                    result.append(page)
+                    page = ChatPage()
+                    // Repeat parent labels so a continued side chat keeps its context.
+                    page[keyPath: key] = ancestors.suffix(limit - 1).map {
+                        ChatOutlineRow(context: $0.context, chat: nil, depth: $0.depth)
+                    }
+                }
+                page[keyPath: key].append(row)
+                ancestors.append(row)
+            }
+        }
+        if page.count > 0 || result.isEmpty { result.append(page) }
+        return result
+    }
 
     private func outline(for members: [TrackedChat]) -> [ChatOutlineRow] {
         var known = contexts
