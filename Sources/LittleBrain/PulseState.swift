@@ -44,8 +44,8 @@ enum TrackedPhase: String, Codable, Sendable {
     case working, ready, waiting, error, unknown
     var label: String {
         switch self {
-        case .working: return "Working"
-        case .ready: return "Ready to view"
+        case .working: return "Active"
+        case .ready: return "Unread"
         case .waiting: return "Needs your input"
         case .error: return "Check this chat"
         case .unknown: return "Status unavailable"

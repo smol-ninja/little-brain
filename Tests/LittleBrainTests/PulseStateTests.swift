@@ -1,5 +1,5 @@
 import XCTest
-@testable import CodexPulse
+@testable import LittleBrain
 
 final class PulseStateTests: XCTestCase {
     let epoch = Date(timeIntervalSince1970: 1000)

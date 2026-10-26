@@ -19,7 +19,7 @@ actor CodexSource {
         return AsyncStream { continuation in
             let cancellation = Cancellation()
             continuation.onTermination = { _ in cancellation.cancel() }
-            DispatchQueue(label: "com.codexpulse.socket", qos: .utility).async {
+            DispatchQueue(label: "com.local.littlebrain.socket", qos: .utility).async {
                 SocketWorker(configuration: config, cancellation: cancellation, output: continuation).run()
             }
         }
@@ -100,7 +100,7 @@ private final class SocketWorker {
                     try consumeFrames()
                 }
             } catch {
-                let reason = (error as? SourceFailure)?.message ?? "Couldn’t read Codex · retrying"
+                let reason = (error as? SourceFailure)?.message ?? "Could not read Codex · retrying"
                 output.yield(.health(.unavailable(reason)))
             }
             disconnect()
@@ -115,7 +115,7 @@ private final class SocketWorker {
         let path = configuration.codexHome.appendingPathComponent("ipc/ipc.sock").path
         guard path.utf8.count < 104 else { throw SourceFailure("Codex socket path is too long") }
         fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw SourceFailure("Couldn’t create local connection") }
+        guard fd >= 0 else { throw SourceFailure("Could not create local connection") }
         var noSigPipe: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
         var timeout = timeval(tv_sec: 2, tv_usec: 0)
@@ -131,7 +131,7 @@ private final class SocketWorker {
         }
         guard connected == 0 else { throw SourceFailure("Open Codex to connect") }
         try send(["type": "request", "requestId": UUID().uuidString, "sourceClientId": client,
-                  "version": 0, "method": "initialize", "params": ["clientType": "codex-pulse"]])
+                  "version": 0, "method": "initialize", "params": ["clientType": "little-brain"]])
     }
 
     func disconnect() {
@@ -363,10 +363,12 @@ private final class SocketWorker {
 
     init(configuration: SourceConfiguration = .localDefault) {
         self.configuration = configuration
-        storageURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Codex Pulse/tracking.json")
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        storageURL = support.appendingPathComponent("little-brain/tracking.json")
+        let previousStorageURL = support.appendingPathComponent("Codex Pulse/tracking.json")
         var saved: SavedState?
-        if let data = try? Data(contentsOf: storageURL) {
+        let existingStorageURL = FileManager.default.fileExists(atPath: storageURL.path) ? storageURL : previousStorageURL
+        if let data = try? Data(contentsOf: existingStorageURL) {
             do {
                 let decoded = try JSONDecoder().decode(SavedState.self, from: data)
                 if decoded.version == 1 { saved = decoded }
@@ -392,15 +394,7 @@ private final class SocketWorker {
     }
     func stop() { task?.cancel(); task = nil }
     func open(_ chat: ChatID) {
-        guard let url = chat.url, NSWorkspace.shared.open(url) else { actionError = "Couldn’t open this chat in Codex."; return }
-    }
-    func openCodex() {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.openai.codex") else {
-            actionError = "Codex isn’t installed."; return
-        }
-        NSWorkspace.shared.openApplication(at: url, configuration: .init()) { _, error in
-            if error != nil { Task { @MainActor in self.actionError = "Couldn’t open Codex." } }
-        }
+        guard let url = chat.url, NSWorkspace.shared.open(url) else { actionError = "Could not open this chat in Codex."; return }
     }
     private func persist() {
         do {
@@ -413,6 +407,6 @@ private final class SocketWorker {
             try FileManager.default.createDirectory(at: storageURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: storageURL, options: .atomic)
             lastSaved = data
-        } catch { actionError = "Tracking is live, but could not be saved for restart." }
+        } catch { actionError = "Could not save tracking for restart." }
     }
 }

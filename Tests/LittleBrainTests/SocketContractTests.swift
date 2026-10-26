@@ -2,7 +2,7 @@ import XCTest
 import Foundation
 import Darwin
 import SQLite3
-@testable import CodexPulse
+@testable import LittleBrain
 
 final class SocketContractTests: XCTestCase {
     func testFragmentedStreamRevisionGapAndReadInvalidationRecoverThroughOwner() async throws {
@@ -49,7 +49,7 @@ final class SocketContractTests: XCTestCase {
 }
 
 private final class SocketFixture: @unchecked Sendable {
-    let home = URL(fileURLWithPath: "/tmp/codex-pulse-\(UUID().uuidString.prefix(8))")
+    let home = URL(fileURLWithPath: "/tmp/little-brain-\(UUID().uuidString.prefix(8))")
     let chatID = "00000000-0000-4000-8000-000000000001"
     var listener: Int32 = -1
     var peer: Int32 = -1

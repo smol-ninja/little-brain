@@ -1,7 +1,7 @@
 import AppKit
 import Foundation
 
-@main struct CodexPulseMain {
+@main struct LittleBrainMain {
     @MainActor static func main() async {
         if CommandLine.arguments.contains("--diagnose") {
             let source = CodexSource(configuration: .localDefault)
@@ -19,7 +19,7 @@ import Foundation
             task.cancel()
             return
         }
-        if NSRunningApplication.runningApplications(withBundleIdentifier: "com.local.codexpulse").count > 1 { return }
+        if NSRunningApplication.runningApplications(withBundleIdentifier: "com.local.littlebrain").count > 1 { return }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

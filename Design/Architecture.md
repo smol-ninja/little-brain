@@ -1,6 +1,6 @@
 # Architecture
 
-Codex Pulse derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog discovers chats; it does not determine whether they are running.
+little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog discovers chats; it does not determine whether they are running.
 
 ## Usage
 
@@ -16,7 +16,7 @@ monitor.open(row.id)
 
 - `PulseState.swift` owns cohort membership, baseline observations, and the counter rules as value types. It restores saved rows as stale and reconciles them with fresh source evidence.
 - `CodexMonitor.swift` owns the source adapter and `PulseMonitor`. A serial socket worker handles POSIX I/O outside the UI and cooperative executor. The adapter projects wire state into domain events. `PulseMonitor` alone applies those events, publishes snapshots, and persists companion metadata.
-- `Presentation.swift` renders an AppKit status item and a SwiftUI panel inside `NSGlassEffectView`. It asks the monitor to navigate and never edits unread state.
+- `Presentation.swift` renders the counter, chat titles, and a two-item options menu inside `NSGlassEffectView`. It asks the monitor to navigate and never edits unread state.
 - `Main.swift` launches the app or its short metadata-only diagnostic.
 
 ## Local integration
@@ -25,7 +25,7 @@ The installed protocol was verified on 2026-10-26. It is internal and versioned,
 
 1. Enumerate all nonarchived top-level Codex Desktop chats from `~/.codex/state_5.sqlite` using read-only SQLite. No recency cutoff excludes older active chats. Repeat discovery every two seconds.
 2. Connect to the existing `~/.codex/ipc/ipc.sock`. Frames are UInt32 little-endian lengths followed by UTF-8 JSON. The adapter bounds incoming frames to 64 MiB.
-3. Initialize as client type `codex-pulse`. Follow known IDs with `thread-stream-following-changed` version 1.
+3. Initialize as client type `little-brain`. Follow known IDs with `thread-stream-following-changed` version 1.
 4. Read `thread-stream-state-changed` version 11 snapshots and revisioned patches. Retain only title, runtime status, unread state, and generation metadata; discard chat bodies.
 5. Accept patch batches only from the established owner at the expected base revision. Unrelated history patches still advance the revision. A gap invalidates freshness and requests another snapshot.
 6. Treat read-state broadcasts as refresh requests, not a second writer of unread state. This avoids applying unordered updates from another account or client.
@@ -41,9 +41,9 @@ Active chats join the cohort. Active and read chats remain tracked. Idle and unr
 
 Opening a row uses `codex://threads/<UUID>`. The counter waits for Codex's confirmed read update rather than decrementing optimistically.
 
-## Synthesis decision
+## Design choice
 
-Two structurally different designs were compared: a live IPC follower and an observer of rollout files plus persisted unread arrays. The live follower became the base because it provides direct activity and read evidence. Durable cohort restoration and explicit stale handling were retained from the file design.
+The design compared two sources: a live IPC follower and an observer of rollout files plus persisted unread arrays. The live follower became the starting design because it provides direct activity and read evidence. The app saves tracked chats and marks them stale until it can confirm their status after restart.
 
 File inference was rejected as a fallback: an unmatched task start can survive a crash, and delayed unread persistence cannot reliably distinguish an unseen completion from one already viewed. Silently switching sources would change the meaning of the counter.
 

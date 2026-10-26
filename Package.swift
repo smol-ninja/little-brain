@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "CodexPulse",
+    name: "LittleBrain",
     platforms: [.macOS("26.0")],
-    products: [.executable(name: "CodexPulse", targets: ["CodexPulse"])],
+    products: [.executable(name: "LittleBrain", targets: ["LittleBrain"])],
     targets: [
-        .executableTarget(name: "CodexPulse", linkerSettings: [.linkedLibrary("sqlite3")]),
-        .testTarget(name: "CodexPulseTests", dependencies: ["CodexPulse"])
+        .executableTarget(name: "LittleBrain", linkerSettings: [.linkedLibrary("sqlite3")]),
+        .testTarget(name: "LittleBrainTests", dependencies: ["LittleBrain"])
     ],
     swiftLanguageModes: [.v5]
 )
