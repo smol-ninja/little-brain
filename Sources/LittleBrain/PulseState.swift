@@ -19,6 +19,7 @@ struct Observation: Equatable, Codable, Sendable {
     var runtime: Runtime
     var unread: Bool
     var createdAt: Date
+    var isEphemeral: Bool? = nil
 }
 
 enum SourceHealth: Equatable, Sendable {
@@ -65,6 +66,8 @@ struct TrackedChat: Identifiable, Equatable, Codable, Sendable {
 struct PulseSnapshot: Equatable, Sendable {
     let rows: [TrackedChat]
     let health: SourceHealth
+    var reviewRows: [TrackedChat] { rows.filter { $0.phase == .ready || $0.phase == .waiting || $0.phase == .error } }
+    var runningRows: [TrackedChat] { rows.filter { $0.phase == .working || $0.phase == .unknown } }
     var readyCount: Int { rows.filter { $0.phase == .ready }.count }
     var workingCount: Int { rows.filter { $0.phase == .working }.count }
     var attentionCount: Int { rows.filter { $0.phase == .waiting || $0.phase == .error }.count }
@@ -110,7 +113,7 @@ struct PulseState {
             let newGeneration = prior != nil && observation.generation != nil && prior?.generation != observation.generation
             let becameUnread = prior?.unread == false && observation.unread
             let newlyCreated = observation.createdAt >= monitoringSince
-            let shouldTrack = existing != nil || newGeneration || becameUnread || newlyCreated
+            let shouldTrack = existing != nil || newGeneration || becameUnread || newlyCreated || observation.isEphemeral == true
             let phase: TrackedPhase
             switch observation.runtime {
             case .active: phase = .working

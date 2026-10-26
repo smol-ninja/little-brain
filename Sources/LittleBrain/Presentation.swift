@@ -41,9 +41,11 @@ enum PanelMetrics {
     static let footerHeight: CGFloat = 52
     static let rowHeight: CGFloat = 52
     static let listInset: CGFloat = 6
+    static let sectionHeaderHeight: CGFloat = 28
+    static let sectionSpacing: CGFloat = 8
 
     static func height(for count: Int) -> CGFloat {
-        headerHeight + footerHeight + (count == 0 ? 0 : CGFloat(min(count, 8)) * rowHeight + listInset * 2)
+        headerHeight + footerHeight + sectionHeaderHeight * 2 + sectionSpacing + listInset * 2 + CGFloat(min(count, 8)) * rowHeight
     }
 }
 
@@ -69,23 +71,24 @@ private struct BrainView: View {
                 .padding(.horizontal, 20)
                 .frame(height: PanelMetrics.headerHeight)
 
-            if !monitor.snapshot.rows.isEmpty {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(monitor.snapshot.rows) { row in
-                            ChatRow(row: row) { monitor.open(row.id); dismiss() }
-                        }
-                    }.padding(PanelMetrics.listInset)
-                }
-                .scrollIndicators(.hidden)
-                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 17))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 17)
-                        .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.24), lineWidth: 0.5)
-                        .allowsHitTesting(false)
-                }
-                .padding(.horizontal, 12)
+            ScrollView {
+                LazyVStack(spacing: PanelMetrics.sectionSpacing) {
+                    ChatSection(title: "Ready for review", rows: monitor.snapshot.reviewRows) { id in
+                        monitor.open(id); dismiss()
+                    }
+                    ChatSection(title: "Running", rows: monitor.snapshot.runningRows) { id in
+                        monitor.open(id); dismiss()
+                    }
+                }.padding(PanelMetrics.listInset)
             }
+            .scrollIndicators(.hidden)
+            .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 17))
+            .overlay {
+                RoundedRectangle(cornerRadius: 17)
+                    .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.24), lineWidth: 0.5)
+                    .allowsHitTesting(false)
+            }
+            .padding(.horizontal, 12)
 
             footer
                 .padding(.horizontal, 20)
@@ -181,6 +184,28 @@ private struct BrainView: View {
                 monitor.actionError = "Enable littlebrain in System Settings > General > Login Items."
             }
         } catch { monitor.actionError = "Could not change launch at login. \(error.localizedDescription)" }
+    }
+}
+
+private struct ChatSection: View {
+    let title: String
+    let rows: [TrackedChat]
+    let open: (ChatID) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(title).font(.system(size: 11, weight: .semibold))
+                Spacer()
+                Text("\(rows.count)").font(.system(size: 10, weight: .medium)).monospacedDigit()
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 12)
+            .frame(height: PanelMetrics.sectionHeaderHeight)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            ForEach(rows) { row in ChatRow(row: row) { open(row.id) } }
+        }
     }
 }
 

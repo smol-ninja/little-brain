@@ -1,6 +1,6 @@
 # Architecture
 
-little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog discovers chats; it does not determine whether they are running.
+little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog discovers saved chats, and live following announcements discover temporary chats. Neither discovery source determines whether a chat is running.
 
 ## Usage
 
@@ -35,7 +35,7 @@ This replaces the separate mouse-down dismissal and mouse-up toggle that could c
 
 ## Appearance
 
-The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. An inset list uses status symbols and hover feedback, without status captions. Launch at login and Quit sit directly in the footer; there is no options menu.
+The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. The inset list has two sections, Ready for review and Running, with status symbols and hover feedback. Finished unread chats and chats needing input or error review go in the first section. Active chats go in Running. Stale rows keep their last group and show an unavailable symbol. Section counts include every row in that group; the header numerator still counts only finished unread chats. Launch at login and Quit sit directly in the footer; there is no options menu.
 
 `PanelMetrics` defines the width, corner radius, and section heights used by both SwiftUI and the window controller. The panel grows with its rows, then scrolls after eight. Native glass supplies the background; a faint blue reflection and edge highlight echo the logo. Reduced motion disables the spinner and scale animations, and reduced transparency uses a solid system background. Status symbols are hidden from accessibility so each row remains one named button.
 
@@ -51,11 +51,15 @@ The installed protocol was verified on 2026-10-26. It is internal and versioned,
 6. Treat read-state broadcasts as refresh requests, not a second writer of unread state. This avoids applying unordered updates from another account or client.
 7. Refresh subscriptions every 15 seconds. Disconnects, lost owners, schema changes, and missing refresh replies leave rows visibly stale instead of inventing completion.
 
-A complete successful catalog read publishes its membership set. The reducer reconciles persisted rows against it, including chats archived or deleted while Pulse was closed. A failed read never masquerades as an empty catalog.
+Codex replays its live following announcements to newly connected clients. For an announced local ID absent from SQLite, the adapter follows the ID and admits it only after a snapshot confirms `sideConversation: true`, `ephemeral: true`, and `threadSource: user`. This excludes background subagents. Creation timestamps in these snapshots are milliseconds. A confirmed temporary chat uses the same row, title, counter rules, and navigation as any other chat, without a badge or title prefix.
+
+The adapter tracks the announcing clients for each temporary chat. Closing one view keeps the chat if another remains. When the last viewer stops following or disconnects, the adapter removes that temporary chat and its subscription. On reconnect, Codex's announcements rebuild this catalog. An initially unread temporary chat is admitted even if it predates littlebrain, so restarting the companion does not lose its unread reply.
+
+A complete successful catalog read publishes the union of saved and confirmed temporary IDs. The reducer reconciles persisted rows against it, including chats archived or deleted while Pulse was closed. A failed read never masquerades as an empty catalog.
 
 ## Counter rules
 
-Active chats join the cohort. Active and read chats remain tracked. Idle and unread tracked chats become Ready; idle and read chats leave. A new generation updates the existing row without duplicating it. Initial historical unread chats are excluded, while subsequently observed activity is admitted. Persisted baselines and membership support restart reconciliation.
+Active chats join the cohort. Active and read chats remain tracked. Idle and unread tracked chats become Ready; idle and read chats leave. A new generation updates the existing row without duplicating it. Initial historical unread saved chats are excluded, while subsequently observed activity is admitted. Persisted baselines and membership support restart reconciliation.
 
 `notLoaded` is unavailable, not completed. Approval and input flags receive an attention state. A system error does not inflate the ready count. Ready means finished and unread, not necessarily successful.
 
@@ -71,4 +75,4 @@ Accessibility scraping was also rejected because background and collapsed chats 
 
 ## Limits
 
-Only top-level local Codex chats are supported. Remote-host and ChatGPT cloud conversations need independently verified sources. Full snapshots arrive transiently over the local socket, although only small metadata projections are retained. The companion has no public stable Codex API to rely on; incompatibility is surfaced visibly.
+Local Codex chats and their open temporary conversations are supported. Background subagents are excluded. Remote-host and ChatGPT cloud conversations need independently verified sources. Full snapshots arrive transiently over the local socket, although only small metadata projections are retained. The companion has no public stable Codex API to rely on; incompatibility is surfaced visibly.

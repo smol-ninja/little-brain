@@ -5,6 +5,88 @@ import SQLite3
 @testable import LittleBrain
 
 final class SocketContractTests: XCTestCase {
+    func testEphemeralChatsJoinFromLiveAnnouncementsAndLeaveWhenTheirLastViewerCloses() async throws {
+        let fixture = try SocketFixture()
+        defer { fixture.close() }
+        let sideID = "00000000-0000-4000-8000-000000000010"
+        let excludedID = "00000000-0000-4000-8000-000000000011"
+        let serverFinished = expectation(description: "live chat fixture completed")
+        DispatchQueue(label: "fixture.live-chats").async {
+            defer {
+                if fixture.peer >= 0 { Darwin.close(fixture.peer); fixture.peer = -1 }
+                serverFinished.fulfill()
+            }
+            do {
+                try fixture.handshake()
+                try fixture.expectFollow()
+                try fixture.snapshot(revision: 1, runtime: "active", unread: false)
+                func announce(_ id: String, viewer: String, following: Bool = true, host: String = "local") throws {
+                    try fixture.send(["type":"broadcast", "method":"thread-stream-following-changed", "version":1,
+                                      "sourceClientId":viewer, "params":["conversationId":id,"hostId":host,"following":following]])
+                }
+                func expect(_ id: String, following: Bool = true) throws {
+                    let message = try fixture.read()
+                    let params = message["params"] as? [String:Any]
+                    XCTAssertEqual(message["method"] as? String, "thread-stream-following-changed")
+                    XCTAssertEqual(params?["conversationId"] as? String, id)
+                    XCTAssertEqual(params?["following"] as? Bool, following)
+                }
+                func snapshot(_ id: String, revision: Int, runtime: String, unread: Bool, source: String = "user") throws {
+                    try fixture.send(["type":"broadcast", "method":"thread-stream-state-changed", "version":11,
+                                      "sourceClientId":"fixture-owner", "params":["conversationId":id,"hostId":"local",
+                                        "change":["type":"snapshot","revision":revision,"conversationState":[
+                                            "title":"Design the icon", "sideConversation":true, "ephemeral":true,
+                                            "threadSource":source, "createdAt":0, "hasUnreadTurn":unread,
+                                            "threadRuntimeStatus":["type":runtime,"activeFlags":[]],
+                                            "latestTurnStartMessageId":"side-turn"
+                                        ]]]])
+                }
+                try announce(excludedID, viewer: "remote-viewer", host: "remote")
+                try announce(sideID, viewer: "window-1")
+                try announce(sideID, viewer: "window-2")
+                try expect(sideID)
+                // This chat predates the monitor and does not exist in SQLite.
+                try snapshot(sideID, revision: 1, runtime: "idle", unread: true)
+                // Force the normal database refresh, which must retain the live chat.
+                try fixture.send(["type":"broadcast", "method":"thread-unarchived", "version":1,
+                                  "sourceClientId":"fixture-owner", "params":["conversationId":fixture.chatID,"hostId":"local"]])
+                try announce(sideID, viewer: "window-1", following: false)
+                try snapshot(sideID, revision: 2, runtime: "active", unread: false)
+                try fixture.send(["type":"broadcast", "method":"thread-read-state-changed", "version":3,
+                                  "sourceClientId":"window-2", "params":["conversationId":sideID,"hostId":"local"]])
+                try expect(sideID)
+                try snapshot(sideID, revision: 3, runtime: "idle", unread: true)
+                try announce(excludedID, viewer: "window-2")
+                try expect(excludedID)
+                try snapshot(excludedID, revision: 1, runtime: "active", unread: false, source: "subagent")
+                try expect(excludedID, following: false)
+                try announce(sideID, viewer: "window-2", following: false)
+                try expect(sideID, following: false)
+                Darwin.close(fixture.peer); fixture.peer = -1
+            } catch { XCTFail("Live chat fixture failed: \(error)") }
+        }
+        let source = CodexSource(configuration: .init(codexHome: fixture.home))
+        let finished = expectation(description: "live chat source disconnected")
+        let collector = Task { () -> ([String], [Observation]) in
+            var state = PulseState(now: Date(timeIntervalSince1970: 100))
+            var labels: [String] = []
+            var observations: [Observation] = []
+            for await event in await source.observations() {
+                state.apply(event)
+                if state.snapshot.isFresh && labels.last != state.snapshot.menuLabel { labels.append(state.snapshot.menuLabel) }
+                if case .observed(let value) = event { observations.append(value) }
+                if case .health(.unavailable) = event { finished.fulfill(); break }
+            }
+            return (labels, observations)
+        }
+        await fulfillment(of: [finished, serverFinished], timeout: 8)
+        collector.cancel()
+        let (labels, observations) = await collector.value
+        XCTAssertEqual(labels, ["0/0", "0/1", "1/2", "0/2", "1/2", "0/1"])
+        XCTAssertEqual(observations.filter { $0.id.value == sideID }.map(\.title), Array(repeating: "Design the icon", count: 3))
+        XCTAssertFalse(observations.contains { $0.id.value == excludedID })
+    }
+
     func testFragmentedStreamRevisionGapAndReadInvalidationRecoverThroughOwner() async throws {
         let fixture = try SocketFixture()
         defer { fixture.close() }
@@ -75,7 +157,7 @@ private final class SocketFixture: @unchecked Sendable {
         if listener >= 0 { Darwin.close(listener); listener = -1 }
         try? FileManager.default.removeItem(at: home)
     }
-    func serve() throws {
+    func handshake() throws {
         var ready = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
         guard Darwin.poll(&ready, 1, 5000) > 0 else { throw FixtureError.failed }
         peer = Darwin.accept(listener, nil, nil)
@@ -87,6 +169,9 @@ private final class SocketFixture: @unchecked Sendable {
         let initMessage = try read()
         XCTAssertEqual(initMessage["method"] as? String, "initialize")
         try send(["type":"response", "method":"initialize", "result":["clientId":"fixture-follower"]], fragmented: true)
+    }
+    func serve() throws {
+        try handshake()
         try expectFollow()
         try snapshot(revision: 1, runtime: "active", unread: false)
         try change(["type":"patches", "baseRevision":1, "revision":2, "patches":[["op":"add", "path":["turnHistory","unretained"], "value":"discard this body"]]])

@@ -37,6 +37,7 @@ private struct CatalogEntry {
     let id: String
     let title: String
     let createdAt: Date
+    var isEphemeral = false
 }
 private struct Replica {
     var owner: String
@@ -58,6 +59,8 @@ private final class SocketWorker {
     var client = "initializing-client"
     var buffer = Data()
     var catalog: [String: CatalogEntry] = [:]
+    var ephemeralCatalog: [String: CatalogEntry] = [:]
+    var liveViewers: [String: Set<String>] = [:]
     var replicas: [String: Replica] = [:]
     var requested: [String: Date] = [:]
     var subscribed: Set<String> = []
@@ -81,7 +84,7 @@ private final class SocketWorker {
                     if client != "initializing-client" {
                         if Date().timeIntervalSince(lastCatalog) > 2 { try discover() }
                         if Date().timeIntervalSince(lastRefresh) > 15 {
-                            for id in catalog.keys.sorted() { try follow(id) }
+                            for id in Set(catalog.keys).union(ephemeralCatalog.keys).union(liveViewers.keys).sorted() { try follow(id) }
                             lastRefresh = Date()
                         }
                         for (id, sent) in requested where Date().timeIntervalSince(sent) > 5 {
@@ -137,7 +140,7 @@ private final class SocketWorker {
     func disconnect() {
         if fd >= 0 { Darwin.close(fd); fd = -1 }
         client = "initializing-client"; buffer.removeAll(); replicas.removeAll()
-        requested.removeAll(); subscribed.removeAll(); lastCatalog = .distantPast; lastRefresh = .distantPast
+        requested.removeAll(); subscribed.removeAll(); ephemeralCatalog.removeAll(); liveViewers.removeAll(); lastCatalog = .distantPast; lastRefresh = .distantPast
     }
 
     func send(_ object: [String: Any]) throws {
@@ -171,10 +174,52 @@ private final class SocketWorker {
             replicas.removeValue(forKey: id)
         }
         catalog = next
-        output.yield(.catalog(Set(catalog.keys.map { ChatID(value: $0) })))
-        for id in catalog.keys.sorted() where !subscribed.contains(id) { try follow(id) }
+        publishCatalog()
+        for id in Set(catalog.keys).union(ephemeralCatalog.keys).union(liveViewers.keys).sorted() where !subscribed.contains(id) { try follow(id) }
         lastCatalog = Date()
         output.yield(.health(.live))
+    }
+
+    func publishCatalog() {
+        let ids = Set(catalog.keys).union(ephemeralCatalog.keys)
+        output.yield(.catalog(Set(ids.map { ChatID(value: $0) })))
+    }
+
+    func removeLiveViewer(_ viewer: String, from id: String) throws {
+        guard liveViewers[id] != nil else { return }
+        liveViewers[id]?.remove(viewer)
+        guard liveViewers[id]?.isEmpty == true else { return }
+        liveViewers.removeValue(forKey: id)
+        let wasTracked = ephemeralCatalog.removeValue(forKey: id) != nil
+        if catalog[id] == nil {
+            replicas.removeValue(forKey: id)
+            if subscribed.contains(id) { try follow(id, following: false) }
+        }
+        if wasTracked { publishCatalog() }
+    }
+
+    func observeFollowing(_ params: [String: Any], sender: String) throws {
+        guard sender != client, let id = params["conversationId"] as? String, UUID(uuidString: id) != nil,
+              let following = params["following"] as? Bool else { return }
+        if !following { try removeLiveViewer(sender, from: id); return }
+        guard catalog[id] == nil else { return }
+        liveViewers[id, default: []].insert(sender)
+        if client != "initializing-client" && !subscribed.contains(id) { try follow(id) }
+    }
+
+    func admitEphemeralSnapshot(_ state: [String: Any], id: String) throws -> Bool {
+        guard liveViewers[id]?.isEmpty == false else { return false }
+        guard state["sideConversation"] as? Bool == true, state["ephemeral"] as? Bool == true,
+              state["threadSource"] as? String == "user",
+              let createdAt = state["createdAt"] as? Double, createdAt.isFinite else {
+            liveViewers.removeValue(forKey: id)
+            try follow(id, following: false)
+            return false
+        }
+        ephemeralCatalog[id] = CatalogEntry(id: id, title: "Untitled chat",
+                                           createdAt: Date(timeIntervalSince1970: createdAt / 1000), isEphemeral: true)
+        publishCatalog()
+        return true
     }
 
     func readCatalog() throws -> [String: CatalogEntry] {
@@ -238,6 +283,7 @@ private final class SocketWorker {
         if method == "client-status-changed" {
             guard let owner = params["clientId"] as? String else { return }
             if params["status"] as? String == "disconnected" {
+                for id in Array(liveViewers.keys) { try removeLiveViewer(owner, from: id) }
                 for (id, replica) in replicas where replica.owner == owner {
                     output.yield(.stale(ChatID(value: id)))
                     replicas.removeValue(forKey: id)
@@ -247,8 +293,13 @@ private final class SocketWorker {
             return
         }
         guard params["hostId"] as? String == "local", let id = params["conversationId"] as? String else { return }
+        if method == "thread-stream-following-changed", message["version"] as? Int == 1,
+           let sender = message["sourceClientId"] as? String {
+            try observeFollowing(params, sender: sender)
+            return
+        }
         if method == "thread-archived" || method == "thread-unarchived" { lastCatalog = .distantPast; return }
-        guard catalog[id] != nil else { lastCatalog = .distantPast; return }
+        guard catalog[id] != nil || ephemeralCatalog[id] != nil || liveViewers[id] != nil else { lastCatalog = .distantPast; return }
         if method == "thread-read-state-changed" {
             // Identity-bearing broadcasts only invalidate; the owner remains the authority.
             try follow(id)
@@ -262,6 +313,9 @@ private final class SocketWorker {
         }
         if change["type"] as? String == "snapshot" {
             guard let state = change["conversationState"] as? [String: Any] else { throw SourceFailure("Invalid Codex snapshot") }
+            if catalog[id] == nil && ephemeralCatalog[id] == nil {
+                guard try admitEphemeralSnapshot(state, id: id) else { return }
+            }
             let projected = state.filter { fields.contains($0.key) }
             try accept(projected, id: id, owner: owner, revision: revision)
         } else if change["type"] as? String == "patches" {
@@ -291,7 +345,7 @@ private final class SocketWorker {
     }
 
     func accept(_ projection: [String: Any], id: String, owner: String, revision: Int) throws {
-        guard let entry = catalog[id], let runtime = projection["threadRuntimeStatus"] as? [String: Any],
+        guard let entry = catalog[id] ?? ephemeralCatalog[id], let runtime = projection["threadRuntimeStatus"] as? [String: Any],
               let kind = runtime["type"] as? String, let unread = projection["hasUnreadTurn"] as? Bool else {
             throw SourceFailure("Codex status format changed · update needed")
         }
@@ -310,7 +364,8 @@ private final class SocketWorker {
         let title = (projection["title"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? entry.title
         let observation = Observation(id: ChatID(value: id), title: String(title.prefix(240)),
                                       generation: projection["latestTurnStartMessageId"] as? String,
-                                      runtime: status, unread: unread, createdAt: entry.createdAt)
+                                      runtime: status, unread: unread, createdAt: entry.createdAt,
+                                      isEphemeral: entry.isEphemeral ? true : nil)
         let previous = replicas[id]
         let refreshWasRequested = requested[id] != nil
         replicas[id] = Replica(owner: owner, revision: revision, fields: projection, observed: observation, refreshed: Date())

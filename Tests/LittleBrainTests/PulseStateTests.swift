@@ -14,8 +14,11 @@ final class PulseStateTests: XCTestCase {
         XCTAssertEqual(state.snapshot.menuLabel, "0/5")
         state.apply(.observed(chat(1, runtime: .idle, unread: true)))
         XCTAssertEqual(state.snapshot.menuLabel, "1/5")
+        XCTAssertEqual(state.snapshot.reviewRows.map(\.id), [chat(1).id])
+        XCTAssertEqual(Set(state.snapshot.runningRows.map(\.id)), Set((2...5).map { chat($0).id }))
         for n in 1...5 { state.apply(.observed(chat(n, runtime: .idle, unread: true))) }
         XCTAssertEqual(state.snapshot.menuLabel, "5/5")
+        XCTAssertTrue(state.snapshot.runningRows.isEmpty)
         state.apply(.observed(chat(1, runtime: .idle, unread: false)))
         XCTAssertEqual(state.snapshot.menuLabel, "4/4")
         // Replayed read events cannot remove another chat.
@@ -74,10 +77,14 @@ final class PulseStateTests: XCTestCase {
     }
     func testApprovalAndErrorsAreNotSuccessfulCompletions() {
         var state = PulseState(now: epoch)
+        state.apply(.observed(chat(2)))
         state.apply(.observed(chat(1, runtime: .waiting)))
+        XCTAssertEqual(state.snapshot.reviewRows.map(\.id), [chat(1).id])
+        XCTAssertEqual(state.snapshot.runningRows.map(\.id), [chat(2).id])
         XCTAssertEqual(state.snapshot.attentionCount, 1)
         XCTAssertEqual(state.snapshot.readyCount, 0)
         state.apply(.observed(chat(1, runtime: .systemError, unread: true)))
+        XCTAssertEqual(state.snapshot.reviewRows.map(\.id), [chat(1).id])
         XCTAssertEqual(state.snapshot.attentionCount, 1)
         XCTAssertEqual(state.snapshot.readyCount, 0)
     }
