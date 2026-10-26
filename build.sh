@@ -9,6 +9,7 @@ BIN="$(swift build --package-path "$ROOT" --scratch-path "$BUILD_DIR" -c release
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/LittleBrain" "$APP/Contents/MacOS/LittleBrain"
 cp "$ROOT/Assets/little-brain.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp "$ROOT/Assets/little-brain.png" "$APP/Contents/Resources/Logo.png"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,8 +19,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>little-brain</string>
 <key>CFBundleDisplayName</key><string>little-brain</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.1.1</string>
-<key>CFBundleVersion</key><string>3</string>
+<key>CFBundleShortVersionString</key><string>1.2.0</string>
+<key>CFBundleVersion</key><string>4</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>LSUIElement</key><true/>

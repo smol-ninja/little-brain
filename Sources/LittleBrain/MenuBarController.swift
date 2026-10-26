@@ -20,6 +20,10 @@ private final class BrainPanel: NSPanel {
             button.target = self
             button.action = #selector(toggle)
             button.sendAction(on: [.leftMouseDown])
+            let logo = AppBrand.logo.copy() as? NSImage
+            logo?.size = NSSize(width: 18, height: 18)
+            button.image = logo
+            button.imagePosition = .imageLeading
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
             button.setAccessibilityLabel("little-brain")
         }
@@ -35,7 +39,7 @@ private final class BrainPanel: NSPanel {
 
         let glass = NSGlassEffectView()
         glass.style = .regular
-        glass.cornerRadius = 18
+        glass.cornerRadius = PanelMetrics.cornerRadius
         if #available(macOS 27, *) { glass.effectIsInteractive = true }
         glass.contentView = content
         content.translatesAutoresizingMaskIntoConstraints = false
@@ -101,8 +105,9 @@ private final class BrainPanel: NSPanel {
 
     private func positionPanel() {
         guard let anchor = buttonFrame, let screen = item.button?.window?.screen ?? NSScreen.main else { return }
-        let height = min(62 + CGFloat(min(rowCount, 8)) * 36, screen.visibleFrame.height - 40)
-        let x = min(max(anchor.midX - 160, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - 328)
-        panel.setFrame(NSRect(x: x, y: anchor.minY - height - 8, width: 320, height: height), display: true)
+        let height = min(PanelMetrics.height(for: rowCount), screen.visibleFrame.height - 40)
+        let width = PanelMetrics.width
+        let x = min(max(anchor.midX - width / 2, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - width - 8)
+        panel.setFrame(NSRect(x: x, y: anchor.minY - height - 8, width: width, height: height), display: true)
     }
 }

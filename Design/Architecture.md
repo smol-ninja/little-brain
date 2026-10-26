@@ -17,7 +17,7 @@ monitor.open(row.id)
 - `PulseState.swift` owns cohort membership, baseline observations, and the counter rules as value types. It restores saved rows as stale and reconciles them with fresh source evidence.
 - `CodexMonitor.swift` owns the source adapter and `PulseMonitor`. A serial socket worker handles POSIX I/O outside the UI and cooperative executor. The adapter projects wire state into domain events. `PulseMonitor` alone applies those events, publishes snapshots, and persists companion metadata.
 - `MenuBarController.swift` owns the status item, glass panel, positioning, and dismissal lifecycle.
-- `Presentation.swift` renders the counter, chat titles, and a two-item options menu. It asks the monitor to navigate and never edits unread state.
+- `Presentation.swift` renders the logo, counter, chat titles, and inline login and quit controls. It asks the monitor to navigate and never edits unread state.
 - `Main.swift` launches the app or its short metadata-only diagnostic.
 
 ## Panel interaction
@@ -31,7 +31,13 @@ The status button and panel form one interaction surface. `MenuBarController` ow
 - Opening the app calls an idempotent `show`; it cannot close an already open panel. Selecting a chat dismisses through the same controller.
 - Snapshot updates change the counter and resize a visible panel. They never open it.
 
-This replaces the separate mouse-down dismissal and mouse-up toggle that could close and reopen the panel during a single click. The native glass surface and minimal chat list are unchanged.
+This replaces the separate mouse-down dismissal and mouse-up toggle that could close and reopen the panel during a single click. The glass panel hosts the presentation without owning chat or login state.
+
+## Appearance
+
+The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. An inset list uses status symbols and hover feedback, without status captions. Launch at login and Quit sit directly in the footer; there is no options menu.
+
+`PanelMetrics` defines the width, corner radius, and section heights used by both SwiftUI and the window controller. The panel grows with its rows, then scrolls after eight. Native glass supplies the background; a faint blue reflection and edge highlight echo the logo. Reduced motion disables the spinner and scale animations, and reduced transparency uses a solid system background. Status symbols are hidden from accessibility so each row remains one named button.
 
 ## Local integration
 

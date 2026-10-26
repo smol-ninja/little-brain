@@ -34,57 +34,143 @@ import ServiceManagement
     }
 }
 
+enum PanelMetrics {
+    static let width: CGFloat = 360
+    static let cornerRadius: CGFloat = 26
+    static let headerHeight: CGFloat = 88
+    static let footerHeight: CGFloat = 52
+    static let rowHeight: CGFloat = 52
+    static let listInset: CGFloat = 6
+
+    static func height(for count: Int) -> CGFloat {
+        headerHeight + footerHeight + (count == 0 ? 0 : CGFloat(min(count, 8)) * rowHeight + listInset * 2)
+    }
+}
+
+enum AppBrand {
+    static let accent = Color(red: 0.32, green: 0.47, blue: 0.98)
+    static let logo = Bundle.main.url(forResource: "Logo", withExtension: "png")
+        .flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 48, height: 48))
+}
+
 private struct BrainView: View {
     @ObservedObject var monitor: PulseMonitor
     let dismiss: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var colorScheme
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Text("little-brain").font(.system(size: 13, weight: .semibold))
-                Spacer(minLength: 8)
-                Text(monitor.snapshot.menuLabel.replacingOccurrences(of: "/", with: " / "))
-                    .font(.system(size: 13, weight: .medium)).monospacedDigit()
-                    .contentTransition(.numericText())
-                    .accessibilityLabel("\(monitor.snapshot.readyCount) unread, \(monitor.snapshot.totalCount) tracked")
-                Menu {
-                    Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: { enabled in
-                        do {
-                            if enabled { try SMAppService.mainApp.register() }
-                            else { try SMAppService.mainApp.unregister() }
-                            launchAtLogin = SMAppService.mainApp.status == .enabled
-                            if enabled && !launchAtLogin {
-                                monitor.actionError = "Enable little-brain in System Settings > General > Login Items."
-                            }
-                        } catch { monitor.actionError = "Could not change launch at login. \(error.localizedDescription)" }
-                    }))
-                    Button("Quit little-brain") { NSApp.terminate(nil) }.keyboardShortcut("q")
-                } label: {
-                    Image(systemName: "ellipsis").font(.system(size: 13))
-                }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 16)
-                .accessibilityLabel("Options")
-            }
-            .padding(.horizontal, 16).padding(.vertical, 14)
+            header
+                .padding(.horizontal, 20)
+                .frame(height: PanelMetrics.headerHeight)
 
             if !monitor.snapshot.rows.isEmpty {
-                Divider().padding(.horizontal, 16)
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(monitor.snapshot.rows) { row in
                             ChatRow(row: row) { monitor.open(row.id); dismiss() }
                         }
-                    }.padding(.horizontal, 8).padding(.vertical, 6)
-                }.scrollIndicators(.hidden)
+                    }.padding(PanelMetrics.listInset)
+                }
+                .scrollIndicators(.hidden)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 17))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 17)
+                        .strokeBorder(Color.white.opacity(colorScheme == .dark ? 0.08 : 0.24), lineWidth: 0.5)
+                        .allowsHitTesting(false)
+                }
+                .padding(.horizontal, 12)
             }
+
+            footer
+                .padding(.horizontal, 20)
+                .frame(height: PanelMetrics.footerHeight)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: monitor.snapshot)
+        .background {
+            if reduceTransparency {
+                Color(nsColor: .windowBackgroundColor)
+            } else {
+                Color(nsColor: .windowBackgroundColor).opacity(0.28)
+                RadialGradient(colors: [AppBrand.accent.opacity(0.14), .clear],
+                               center: .topLeading, startRadius: 0, endRadius: 270)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: PanelMetrics.cornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: PanelMetrics.cornerRadius)
+                .strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0.06), .white.opacity(0.22)],
+                                             startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.75)
+                .allowsHitTesting(false)
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: monitor.snapshot)
         .alert("little-brain", isPresented: Binding(get: { monitor.actionError != nil }, set: { if !$0 { monitor.actionError = nil } })) {
             Button("OK") { monitor.actionError = nil }
         } message: { Text(monitor.actionError ?? "") }
+    }
+
+    private var header: some View {
+        HStack(spacing: 11) {
+            Image(nsImage: AppBrand.logo)
+                .resizable().interpolation(.high).scaledToFit()
+                .frame(width: 48, height: 48)
+                .shadow(color: AppBrand.accent.opacity(0.24), radius: 9, y: 4)
+                .accessibilityHidden(true)
+            Text("little-brain")
+                .font(.system(size: 15, weight: .semibold)).tracking(-0.35)
+            Spacer(minLength: 12)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(monitor.snapshot.isFresh ? "\(monitor.snapshot.readyCount)" : "—")
+                    .font(.system(size: 31, weight: .medium, design: .rounded))
+                    .foregroundStyle(monitor.snapshot.readyCount > 0 && monitor.snapshot.isFresh ? AppBrand.accent : Color.primary)
+                    .contentTransition(.numericText())
+                Text("/ \(monitor.snapshot.totalCount)")
+                    .font(.system(size: 17, weight: .regular, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+            .monospacedDigit()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(monitor.snapshot.isFresh
+                                ? "\(monitor.snapshot.readyCount) unread, \(monitor.snapshot.totalCount) tracked"
+                                : "Status unavailable, \(monitor.snapshot.totalCount) tracked")
+            .help("Finished unread chats / tracked chats")
+        }
+    }
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            Text("Launch at login")
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
+            Spacer()
+            Button { NSApp.terminate(nil) } label: {
+                Image(systemName: "power")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 28, height: 28)
+                    .background(Color.primary.opacity(0.045), in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(PanelControlStyle())
+            .keyboardShortcut("q")
+            .accessibilityLabel("Quit little-brain")
+            .help("Quit little-brain")
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() }
+            else { try SMAppService.mainApp.unregister() }
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+            if enabled && !launchAtLogin {
+                monitor.actionError = "Enable little-brain in System Settings > General > Login Items."
+            }
+        } catch { monitor.actionError = "Could not change launch at login. \(error.localizedDescription)" }
     }
 }
 
@@ -92,19 +178,63 @@ private struct ChatRow: View {
     let row: TrackedChat
     let open: () -> Void
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: open) {
-            Text(row.title)
-                .font(.system(size: 13, weight: row.phase == .ready ? .medium : .regular))
-                .foregroundStyle(row.isFresh ? Color.primary : Color.secondary)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 8).frame(height: 36)
-                .background(hovering ? Color.primary.opacity(0.055) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                .contentShape(RoundedRectangle(cornerRadius: 8))
+            HStack(spacing: 12) {
+                statusMark.frame(width: 18, height: 18).accessibilityHidden(true)
+                Text(row.title)
+                    .font(.system(size: 13, weight: row.phase == .ready ? .medium : .regular))
+                    .foregroundStyle(row.isFresh ? Color.primary : Color.secondary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(hovering ? AppBrand.accent : Color.secondary.opacity(0.45))
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 12).frame(height: PanelMetrics.rowHeight)
+            .background(hovering ? AppBrand.accent.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 12))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
         }
-        .buttonStyle(.plain).onHover { hovering = $0 }
+        .buttonStyle(PanelControlStyle())
+        .onHover { hovering = $0 }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: hovering)
         .accessibilityLabel("\(row.title), \(row.isFresh ? row.phase.label : "status unavailable"). Open in Codex")
+    }
+
+    @ViewBuilder private var statusMark: some View {
+        if !row.isFresh || row.phase == .unknown {
+            Image(systemName: "circle.dashed").font(.system(size: 13)).foregroundStyle(.secondary)
+        } else {
+            switch row.phase {
+            case .working:
+                if reduceMotion {
+                    Circle().strokeBorder(AppBrand.accent, lineWidth: 1.8).frame(width: 11, height: 11)
+                } else {
+                    ProgressView().controlSize(.mini).tint(AppBrand.accent)
+                }
+            case .ready:
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundStyle(AppBrand.accent)
+            case .waiting:
+                Image(systemName: "pause.circle").font(.system(size: 15)).foregroundStyle(.orange)
+            case .error:
+                Image(systemName: "exclamationmark.circle").font(.system(size: 15)).foregroundStyle(.orange)
+            case .unknown:
+                EmptyView()
+            }
+        }
+    }
+}
+
+private struct PanelControlStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.65 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }

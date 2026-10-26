@@ -2,11 +2,11 @@
 
 little-brain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it.
 
-<img src="docs/screenshot.png" width="320" alt="little-brain showing its counter and tracked chats" />
+<img src="docs/screenshot.png" width="360" alt="little-brain showing its counter and tracked chats" />
 
 ## Setup
 
-Requires macOS 26 or later, Codex, and Xcode with the macOS 26 SDK or later.
+Requires macOS 26 or later, Codex, and Xcode with the macOS 27 SDK or later.
 
 Ask Codex:
 
@@ -22,4 +22,4 @@ cp -R ../little-brain.app /Applications/
 open /Applications/little-brain.app
 ```
 
-Use the options menu for Launch at login and Quit. little-brain tracks local Codex chats only.
+Launch at login and the power button are at the bottom of the panel. little-brain tracks local Codex chats only.
