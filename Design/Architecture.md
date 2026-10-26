@@ -16,8 +16,22 @@ monitor.open(row.id)
 
 - `PulseState.swift` owns cohort membership, baseline observations, and the counter rules as value types. It restores saved rows as stale and reconciles them with fresh source evidence.
 - `CodexMonitor.swift` owns the source adapter and `PulseMonitor`. A serial socket worker handles POSIX I/O outside the UI and cooperative executor. The adapter projects wire state into domain events. `PulseMonitor` alone applies those events, publishes snapshots, and persists companion metadata.
-- `Presentation.swift` renders the counter, chat titles, and a two-item options menu inside `NSGlassEffectView`. It asks the monitor to navigate and never edits unread state.
+- `MenuBarController.swift` owns the status item, glass panel, positioning, and dismissal lifecycle.
+- `Presentation.swift` renders the counter, chat titles, and a two-item options menu. It asks the monitor to navigate and never edits unread state.
 - `Main.swift` launches the app or its short metadata-only diagnostic.
+
+## Panel interaction
+
+The status button and panel form one interaction surface. `MenuBarController` owns both; the app delegate only connects it to the chat monitor.
+
+- A left mouse-down on the status button toggles the panel. Mouse-up has no action.
+- Outside-click observers ignore the screen bounds of both the button and the panel. macOS can deliver a status-item press through the global observer, so window identity alone is insufficient.
+- Observers exist only while the panel is visible. Every dismissal removes them and clears the status button highlight.
+- Escape uses the panel's native `cancelOperation`, leaving native menus in charge of their own keyboard handling.
+- Opening the app calls an idempotent `show`; it cannot close an already open panel. Selecting a chat dismisses through the same controller.
+- Snapshot updates change the counter and resize a visible panel. They never open it.
+
+This replaces the separate mouse-down dismissal and mouse-up toggle that could close and reopen the panel during a single click. The native glass surface and minimal chat list are unchanged.
 
 ## Local integration
 
