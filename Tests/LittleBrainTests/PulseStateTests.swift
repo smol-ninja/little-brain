@@ -7,6 +7,64 @@ final class PulseStateTests: XCTestCase {
         Observation(id: ChatID(value: String(format: "00000000-0000-4000-8000-%012d", number)), title: "Chat \(number)",
                     generation: generation, runtime: runtime, unread: unread, createdAt: Date(timeIntervalSince1970: created))
     }
+    func testNestedChatsKeepTheirParentsAcrossSectionsAndRestartWithoutInflatingCounts() throws {
+        var state = PulseState(now: epoch)
+        state.apply(.health(.live))
+        var main = chat(1)
+        var side = chat(2, runtime: .idle, unread: true)
+        side.title = main.title
+        side.parentID = main.id; side.isSideChat = true; side.isEphemeral = true
+        var nested = chat(3)
+        nested.title = main.title
+        nested.parentID = side.id; nested.isSideChat = true; nested.isEphemeral = true
+        for observation in [main, side, nested] { state.apply(.observed(observation)) }
+        XCTAssertEqual(state.snapshot.menuLabel, "1/3")
+        XCTAssertEqual(state.snapshot.reviewOutline.map(\.id), [main.id, side.id])
+        XCTAssertEqual(state.snapshot.reviewOutline.compactMap(\.chat).map(\.id), [side.id])
+        XCTAssertEqual(state.snapshot.runningOutline.map(\.id), [main.id, side.id, nested.id])
+        XCTAssertEqual(state.snapshot.runningOutline.map(\.depth), [0, 1, 2])
+        XCTAssertEqual(state.snapshot.runningOutline.map { $0.context.displayTitle }, ["Chat 1", "Side chat", "Side chat"])
+        XCTAssertEqual(state.snapshot.runningOutline.compactMap(\.chat).map(\.id), [main.id, nested.id])
+        XCTAssertEqual(state.snapshot.displayedRowCount, 5)
+
+        main.runtime = .idle
+        side.unread = false
+        state.apply(.observed(main)); state.apply(.observed(side))
+        XCTAssertEqual(state.snapshot.menuLabel, "0/1")
+        XCTAssertEqual(state.snapshot.runningOutline.compactMap(\.chat).map(\.id), [nested.id])
+        let saved = try JSONDecoder().decode(SavedState.self, from: JSONEncoder().encode(state.saved))
+        var restored = PulseState(restoring: saved)
+        // Closed ancestors remain labels while a descendant is still tracked.
+        restored.apply(.catalog([nested.id: nested.title]))
+        XCTAssertEqual(restored.snapshot.runningOutline.map(\.depth), [0, 1, 2])
+        XCTAssertEqual(restored.snapshot.runningOutline.map { $0.context.displayTitle }, ["Chat 1", "Side chat", "Side chat"])
+        XCTAssertEqual(restored.snapshot.totalCount, 1)
+        restored.apply(.catalog([:]))
+        XCTAssertTrue(restored.snapshot.runningOutline.isEmpty)
+    }
+
+    func testHierarchyUsesCatalogTitlesAndDoesNotLoseChatsWithBrokenAncestry() {
+        var state = PulseState(now: epoch)
+        let main = chat(1)
+        var side = chat(2)
+        side.parentID = main.id; side.isSideChat = true
+        state.apply(.catalog([main.id: "Saved main chat", side.id: side.title]))
+        state.apply(.observed(side))
+        XCTAssertEqual(state.snapshot.runningOutline.map { $0.context.displayTitle }, ["Saved main chat", "Side chat"])
+        XCTAssertNil(state.snapshot.runningOutline.first?.chat)
+        XCTAssertEqual(state.snapshot.totalCount, 1)
+        state.apply(.catalog([side.id: side.title]))
+        XCTAssertEqual(state.snapshot.runningOutline.map { $0.context.displayTitle }, ["Main chat", "Side chat"])
+
+        var parent = main
+        parent.parentID = side.id; parent.isSideChat = true
+        state.apply(.observed(parent))
+        let outline = state.snapshot.runningOutline
+        XCTAssertEqual(Set(outline.map(\.id)), Set([main.id, side.id]))
+        XCTAssertEqual(outline.count, 2)
+        XCTAssertEqual(outline.compactMap(\.chat).count, 2)
+    }
+
     func testFiveChatsFinishAndViewingOneShrinksBothCounts() {
         var state = PulseState(now: epoch)
         state.apply(.health(.live))
@@ -72,7 +130,7 @@ final class PulseStateTests: XCTestCase {
         XCTAssertEqual(state.snapshot.menuLabel, "—/1")
         state.apply(.observed(chat(1, runtime: .idle, unread: true)))
         XCTAssertEqual(state.snapshot.menuLabel, "1/1")
-        state.apply(.catalog([]))
+        state.apply(.catalog([:]))
         XCTAssertEqual(state.snapshot.menuLabel, "0/0")
     }
     func testApprovalAndErrorsAreNotSuccessfulCompletions() {

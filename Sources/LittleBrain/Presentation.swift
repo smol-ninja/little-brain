@@ -73,10 +73,10 @@ private struct BrainView: View {
 
             ScrollView {
                 LazyVStack(spacing: PanelMetrics.sectionSpacing) {
-                    ChatSection(title: "Ready for review", rows: monitor.snapshot.reviewRows) { id in
+                    ChatSection(title: "Ready for review", rows: monitor.snapshot.reviewOutline) { id in
                         monitor.open(id); dismiss()
                     }
-                    ChatSection(title: "Running", rows: monitor.snapshot.runningRows) { id in
+                    ChatSection(title: "Running", rows: monitor.snapshot.runningOutline) { id in
                         monitor.open(id); dismiss()
                     }
                 }.padding(PanelMetrics.listInset)
@@ -189,7 +189,7 @@ private struct BrainView: View {
 
 private struct ChatSection: View {
     let title: String
-    let rows: [TrackedChat]
+    let rows: [ChatOutlineRow]
     let open: (ChatID) -> Void
 
     var body: some View {
@@ -197,20 +197,21 @@ private struct ChatSection: View {
             HStack {
                 Text(title).font(.system(size: 11, weight: .semibold))
                 Spacer()
-                Text("\(rows.count)").font(.system(size: 10, weight: .medium)).monospacedDigit()
+                Text("\(rows.filter { $0.chat != nil }.count)").font(.system(size: 10, weight: .medium)).monospacedDigit()
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)
             .frame(height: PanelMetrics.sectionHeaderHeight)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            ForEach(rows) { row in ChatRow(row: row) { open(row.id) } }
+            ForEach(rows) { row in ChatRow(entry: row) { open(row.id) } }
         }
     }
 }
 
 private struct ChatRow: View {
-    let row: TrackedChat
+    let entry: ChatOutlineRow
+    private var row: TrackedChat? { entry.chat }
     let open: () -> Void
     @State private var hovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -219,9 +220,9 @@ private struct ChatRow: View {
         Button(action: open) {
             HStack(spacing: 12) {
                 statusMark.frame(width: 18, height: 18).accessibilityHidden(true)
-                Text(row.title)
-                    .font(.system(size: 13, weight: row.phase == .ready ? .medium : .regular))
-                    .foregroundStyle(row.isFresh ? Color.primary : Color.secondary)
+                Text(entry.context.displayTitle)
+                    .font(.system(size: entry.depth == 0 ? 13 : 12, weight: row?.phase == .ready || row == nil ? .medium : .regular))
+                    .foregroundStyle(row?.isFresh == true ? Color.primary : Color.secondary)
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "arrow.up.right")
@@ -230,35 +231,47 @@ private struct ChatRow: View {
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 12).frame(height: PanelMetrics.rowHeight)
-            .background(hovering ? AppBrand.accent.opacity(0.09) : .clear, in: RoundedRectangle(cornerRadius: 12))
+            .background(hovering ? AppBrand.accent.opacity(0.09) : Color.primary.opacity(entry.depth > 0 ? 0.025 : 0), in: RoundedRectangle(cornerRadius: 12))
             .contentShape(RoundedRectangle(cornerRadius: 12))
+            .padding(.leading, CGFloat(min(entry.depth, 6)) * 18)
+            .overlay(alignment: .leading) {
+                HStack(spacing: 0) {
+                    ForEach(0..<min(entry.depth, 6), id: \.self) { _ in
+                        Rectangle().fill(AppBrand.accent.opacity(0.18)).frame(width: 1).frame(width: 18)
+                    }
+                }.allowsHitTesting(false)
+            }
         }
         .buttonStyle(PanelControlStyle())
         .onHover { hovering = $0 }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: hovering)
-        .accessibilityLabel("\(row.title), \(row.isFresh ? row.phase.label : "status unavailable"). Open in Codex")
+        .accessibilityLabel("\(entry.context.displayTitle), level \(entry.depth + 1), \(row.map { $0.isFresh ? $0.phase.label : "status unavailable" } ?? "Parent chat"). Open in Codex")
     }
 
     @ViewBuilder private var statusMark: some View {
-        if !row.isFresh || row.phase == .unknown {
-            Image(systemName: "circle.dashed").font(.system(size: 13)).foregroundStyle(.secondary)
-        } else {
-            switch row.phase {
-            case .working:
-                if reduceMotion {
-                    Circle().strokeBorder(AppBrand.accent, lineWidth: 1.8).frame(width: 11, height: 11)
-                } else {
-                    ProgressView().controlSize(.mini).tint(AppBrand.accent)
+        if let row {
+            if !row.isFresh || row.phase == .unknown {
+                Image(systemName: "circle.dashed").font(.system(size: 13)).foregroundStyle(.secondary)
+            } else {
+                switch row.phase {
+                case .working:
+                    if reduceMotion {
+                        Circle().strokeBorder(AppBrand.accent, lineWidth: 1.8).frame(width: 11, height: 11)
+                    } else {
+                        ProgressView().controlSize(.mini).tint(AppBrand.accent)
+                    }
+                case .ready:
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundStyle(AppBrand.accent)
+                case .waiting:
+                    Image(systemName: "pause.circle").font(.system(size: 15)).foregroundStyle(.orange)
+                case .error:
+                    Image(systemName: "exclamationmark.circle").font(.system(size: 15)).foregroundStyle(.orange)
+                case .unknown:
+                    EmptyView()
                 }
-            case .ready:
-                Image(systemName: "checkmark.circle.fill").font(.system(size: 16)).foregroundStyle(AppBrand.accent)
-            case .waiting:
-                Image(systemName: "pause.circle").font(.system(size: 15)).foregroundStyle(.orange)
-            case .error:
-                Image(systemName: "exclamationmark.circle").font(.system(size: 15)).foregroundStyle(.orange)
-            case .unknown:
-                EmptyView()
             }
+        } else {
+            Image(systemName: "bubble.left").font(.system(size: 13)).foregroundStyle(.secondary)
         }
     }
 }

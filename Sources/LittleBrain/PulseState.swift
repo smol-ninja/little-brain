@@ -20,6 +20,8 @@ struct Observation: Equatable, Codable, Sendable {
     var unread: Bool
     var createdAt: Date
     var isEphemeral: Bool? = nil
+    var parentID: ChatID? = nil
+    var isSideChat: Bool? = nil
 }
 
 enum SourceHealth: Equatable, Sendable {
@@ -36,7 +38,7 @@ enum SourceHealth: Equatable, Sendable {
 
 enum SourceEvent: Sendable {
     case observed(Observation)
-    case catalog(Set<ChatID>)
+    case catalog([ChatID: String])
     case stale(ChatID)
     case health(SourceHealth)
 }
@@ -61,11 +63,32 @@ struct TrackedChat: Identifiable, Equatable, Codable, Sendable {
     var phase: TrackedPhase
     var isFresh: Bool
     var changedAt: Date
+    var parentID: ChatID? = nil
+    var isSideChat: Bool? = nil
+}
+
+struct ChatContext: Equatable, Identifiable, Sendable {
+    let id: ChatID
+    var title: String
+    var parentID: ChatID? = nil
+    var isSideChat = false
+    var displayTitle: String { isSideChat ? "Side chat" : title }
+}
+
+struct ChatOutlineRow: Equatable, Identifiable {
+    let context: ChatContext
+    let chat: TrackedChat?
+    let depth: Int
+    var id: ChatID { context.id }
 }
 
 struct PulseSnapshot: Equatable, Sendable {
     let rows: [TrackedChat]
     let health: SourceHealth
+    var contexts: [ChatID: ChatContext] = [:]
+    var reviewOutline: [ChatOutlineRow] { outline(for: reviewRows) }
+    var runningOutline: [ChatOutlineRow] { outline(for: runningRows) }
+    var displayedRowCount: Int { reviewOutline.count + runningOutline.count }
     var reviewRows: [TrackedChat] { rows.filter { $0.phase == .ready || $0.phase == .waiting || $0.phase == .error } }
     var runningRows: [TrackedChat] { rows.filter { $0.phase == .working || $0.phase == .unknown } }
     var readyCount: Int { rows.filter { $0.phase == .ready }.count }
@@ -74,6 +97,42 @@ struct PulseSnapshot: Equatable, Sendable {
     var totalCount: Int { rows.count }
     var isFresh: Bool { health.isLive && rows.allSatisfy(\.isFresh) }
     var menuLabel: String { isFresh ? "\(readyCount)/\(totalCount)" : "—/\(totalCount)" }
+
+    private func outline(for members: [TrackedChat]) -> [ChatOutlineRow] {
+        var known = contexts
+        for row in rows {
+            known[row.id] = ChatContext(id: row.id, title: row.title, parentID: row.parentID, isSideChat: row.isSideChat == true)
+        }
+        let membersByID = Dictionary(uniqueKeysWithValues: members.map { ($0.id, $0) })
+        var order: [ChatID] = []
+        var included: Set<ChatID> = []
+        for member in members {
+            var cursor: ChatID? = member.id
+            while let id = cursor, included.insert(id).inserted {
+                order.append(id)
+                cursor = known[id]?.parentID
+            }
+        }
+        var children: [ChatID: [ChatID]] = [:]
+        var roots: [ChatID] = []
+        for id in order {
+            if let parent = known[id]?.parentID, included.contains(parent) {
+                children[parent, default: []].append(id)
+            } else { roots.append(id) }
+        }
+        var result: [ChatOutlineRow] = []
+        var visited: Set<ChatID> = []
+        func append(_ id: ChatID, depth: Int) {
+            guard visited.insert(id).inserted else { return }
+            let context = known[id] ?? ChatContext(id: id, title: "Main chat")
+            result.append(ChatOutlineRow(context: context, chat: membersByID[id], depth: depth))
+            for child in children[id] ?? [] { append(child, depth: depth + 1) }
+        }
+        for id in roots { append(id, depth: 0) }
+        // Malformed ancestry must not hide chats or recurse forever.
+        for id in order where !visited.contains(id) { append(id, depth: 0) }
+        return result
+    }
 }
 
 struct SavedState: Codable {
@@ -86,6 +145,7 @@ struct SavedState: Codable {
 struct PulseState {
     private var tracked: [ChatID: TrackedChat] = [:]
     private var baselines: [ChatID: Observation] = [:]
+    private var catalogTitles: [ChatID: String] = [:]
     private var health: SourceHealth = .connecting
     private let monitoringSince: Date
 
@@ -104,9 +164,20 @@ struct PulseState {
             health = value
             if !value.isLive { for id in tracked.keys { tracked[id]?.isFresh = false } }
         case .stale(let id): tracked[id]?.isFresh = false
-        case .catalog(let ids):
+        case .catalog(let titles):
+            catalogTitles = titles
+            let ids = Set(titles.keys)
             tracked = tracked.filter { ids.contains($0.key) }
-            baselines = baselines.filter { ids.contains($0.key) }
+            var retained = ids
+            for row in tracked.values {
+                var parent = row.parentID
+                var visited: Set<ChatID> = []
+                while let id = parent, visited.insert(id).inserted {
+                    retained.insert(id)
+                    parent = baselines[id]?.parentID
+                }
+            }
+            baselines = baselines.filter { retained.contains($0.key) }
         case .observed(let observation):
             let prior = baselines[observation.id]
             let existing = tracked[observation.id]
@@ -137,18 +208,25 @@ struct PulseState {
             tracked[observation.id] = TrackedChat(
                 id: observation.id, title: observation.title, generation: observation.generation,
                 phase: phase, isFresh: true,
-                changedAt: existing?.phase == phase ? existing!.changedAt : now
+                changedAt: existing?.phase == phase ? existing!.changedAt : now,
+                parentID: observation.parentID, isSideChat: observation.isSideChat
             )
         }
     }
 
     var snapshot: PulseSnapshot {
-        PulseSnapshot(rows: tracked.values.sorted {
+        var contexts: [ChatID: ChatContext] = [:]
+        for (id, title) in catalogTitles { contexts[id] = ChatContext(id: id, title: title) }
+        for observation in baselines.values {
+            contexts[observation.id] = ChatContext(id: observation.id, title: observation.title,
+                                                  parentID: observation.parentID, isSideChat: observation.isSideChat == true)
+        }
+        return PulseSnapshot(rows: tracked.values.sorted {
             if $0.phase == .ready && $1.phase != .ready { return true }
             if $1.phase == .ready && $0.phase != .ready { return false }
             if $0.changedAt != $1.changedAt { return $0.changedAt > $1.changedAt }
             return $0.id.value < $1.id.value
-        }, health: health)
+        }, health: health, contexts: contexts)
     }
 
     var saved: SavedState {

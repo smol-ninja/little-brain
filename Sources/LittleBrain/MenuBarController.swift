@@ -53,7 +53,7 @@ private final class BrainPanel: NSPanel {
     }
 
     func update(_ snapshot: PulseSnapshot) {
-        rowCount = snapshot.totalCount
+        rowCount = snapshot.displayedRowCount
         item.button?.title = snapshot.menuLabel.replacingOccurrences(of: "/", with: " / ")
         item.button?.setAccessibilityValue("\(snapshot.readyCount) ready, \(snapshot.totalCount) tracked. \(snapshot.health.message)")
         if panel.isVisible { positionPanel() }

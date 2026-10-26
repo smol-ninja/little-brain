@@ -37,6 +37,8 @@ final class SocketContractTests: XCTestCase {
                                         "change":["type":"snapshot","revision":revision,"conversationState":[
                                             "title":"Design the icon", "sideConversation":true, "ephemeral":true,
                                             "threadSource":source, "createdAt":0, "hasUnreadTurn":unread,
+                                            "sideConversationParentNavigationPath":"/local/\(fixture.chatID)",
+                                            "forkedFromId":revision == 1 ? NSNull() : (revision == 2 ? excludedID : fixture.chatID) as Any,
                                             "threadRuntimeStatus":["type":runtime,"activeFlags":[]],
                                             "latestTurnStartMessageId":"side-turn"
                                         ]]]])
@@ -85,6 +87,9 @@ final class SocketContractTests: XCTestCase {
         XCTAssertEqual(labels, ["0/0", "0/1", "1/2", "0/2", "1/2", "0/1"])
         XCTAssertEqual(observations.filter { $0.id.value == sideID }.map(\.title), Array(repeating: "Design the icon", count: 3))
         XCTAssertFalse(observations.contains { $0.id.value == excludedID })
+        let sideObservations = observations.filter { $0.id.value == sideID }
+        XCTAssertEqual(sideObservations.map { $0.parentID?.value }, [fixture.chatID, excludedID, fixture.chatID])
+        XCTAssertTrue(sideObservations.allSatisfy { $0.isSideChat == true })
     }
 
     func testFragmentedStreamRevisionGapAndReadInvalidationRecoverThroughOwner() async throws {

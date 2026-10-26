@@ -1,6 +1,6 @@
 # Architecture
 
-little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog discovers saved chats, and live following announcements discover temporary chats. Neither discovery source determines whether a chat is running.
+little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog supplies saved chat IDs and titles, and live following announcements discover temporary chats. Neither discovery source determines whether a chat is running.
 
 ## Usage
 
@@ -35,9 +35,9 @@ This replaces the separate mouse-down dismissal and mouse-up toggle that could c
 
 ## Appearance
 
-The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. The inset list has two sections, Ready for review and Running, with status symbols and hover feedback. Finished unread chats and chats needing input or error review go in the first section. Active chats go in Running. Stale rows keep their last group and show an unavailable symbol. Section counts include every row in that group; the header numerator still counts only finished unread chats. Launch at login and Quit sit directly in the footer; there is no options menu.
+The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. The inset list has two sections, Ready for review and Running, with status symbols and hover feedback. Finished unread chats and chats needing input or error review go in the first section. Active chats go in Running. Stale rows keep their last group and show an unavailable symbol. Section counts include tracked chats in that group; the header numerator still counts only finished unread chats. Parent labels added for context do not affect either counter. Launch at login and Quit sit directly in the footer; there is no options menu.
 
-`PanelMetrics` defines the width, corner radius, and section heights used by both SwiftUI and the window controller. The panel grows with its rows, then scrolls after eight. Native glass supplies the background; a faint blue reflection and edge highlight echo the logo. Reduced motion disables the spinner and scale animations, and reduced transparency uses a solid system background. Status symbols are hidden from accessibility so each row remains one named button.
+`PanelMetrics` defines the width, corner radius, and section heights used by both SwiftUI and the window controller. The panel grows with its displayed rows, including parent labels, then scrolls after eight. Native glass supplies the background; a faint blue reflection and edge highlight echo the logo. Reduced motion disables the spinner and scale animations, and reduced transparency uses a solid system background. Status symbols are hidden from accessibility so each row remains one named button.
 
 ## Local integration
 
@@ -46,16 +46,24 @@ The installed protocol was verified on 2026-10-26. It is internal and versioned,
 1. Enumerate all nonarchived top-level Codex Desktop chats from `~/.codex/state_5.sqlite` using read-only SQLite. No recency cutoff excludes older active chats. Repeat discovery every two seconds.
 2. Connect to the existing `~/.codex/ipc/ipc.sock`. Frames are UInt32 little-endian lengths followed by UTF-8 JSON. The adapter bounds incoming frames to 64 MiB.
 3. Initialize as client type `little-brain`. Follow known IDs with `thread-stream-following-changed` version 1.
-4. Read `thread-stream-state-changed` version 11 snapshots and revisioned patches. Retain only title, runtime status, unread state, and generation metadata; discard chat bodies.
+4. Read `thread-stream-state-changed` version 11 snapshots and revisioned patches. Retain title, runtime status, unread state, generation metadata, and parent references; discard chat bodies.
 5. Accept patch batches only from the established owner at the expected base revision. Unrelated history patches still advance the revision. A gap invalidates freshness and requests another snapshot.
 6. Treat read-state broadcasts as refresh requests, not a second writer of unread state. This avoids applying unordered updates from another account or client.
 7. Refresh subscriptions every 15 seconds. Disconnects, lost owners, schema changes, and missing refresh replies leave rows visibly stale instead of inventing completion.
 
-Codex replays its live following announcements to newly connected clients. For an announced local ID absent from SQLite, the adapter follows the ID and admits it only after a snapshot confirms `sideConversation: true`, `ephemeral: true`, and `threadSource: user`. This excludes background subagents. Creation timestamps in these snapshots are milliseconds. A confirmed temporary chat uses the same row, title, counter rules, and navigation as any other chat, without a badge or title prefix.
+Codex replays its live following announcements to newly connected clients. For an announced local ID absent from SQLite, the adapter follows the ID and admits it only after a snapshot confirms `sideConversation: true`, `ephemeral: true`, and `threadSource: user`. This excludes background subagents. Creation timestamps in these snapshots are milliseconds. A confirmed temporary chat uses the same counter rules and navigation as other chats. Its row is labeled Side chat and nested under its parent.
 
 The adapter tracks the announcing clients for each temporary chat. Closing one view keeps the chat if another remains. When the last viewer stops following or disconnects, the adapter removes that temporary chat and its subscription. On reconnect, Codex's announcements rebuild this catalog. An initially unread temporary chat is admitted even if it predates littlebrain, so restarting the companion does not lose its unread reply.
 
 A complete successful catalog read publishes the union of saved and confirmed temporary IDs. The reducer reconciles persisted rows against it, including chats archived or deleted while Pulse was closed. A failed read never masquerades as an empty catalog.
+
+## Chat hierarchy
+
+Side chats take their immediate parent from `forkedFromId`. If that ID is absent, a validated local `sideConversationParentNavigationPath` supplies the parent. These references apply only when Codex marks the conversation as a side chat; ordinary forks stay independent.
+
+Each section builds an outline from its tracked members and their ancestors. A running main chat with a finished side chat appears as a context label under Ready for review and as a tracked row under Running. Idle or closed ancestors remain context labels while descendants are tracked. Every side-chat level uses the label Side chat, with indented cards and connecting lines. Nesting is derived recursively, with cycle protection. Visual indentation stops increasing after six levels to preserve room for labels, while accessibility retains the actual level.
+
+Catalog titles name parents whose runtime snapshot has not loaded. Saved observations preserve ancestry across restart. Context rows never count as extra chats, and window height uses the displayed outline length rather than the counter total.
 
 ## Counter rules
 

@@ -3,9 +3,11 @@
   <img src="docs/wordmark-light.svg" width="320" alt="littlebrain" />
 </picture>
 
-littlebrain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it. Chats are grouped into Ready for review and Running.
+littlebrain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it. Chats are grouped into Ready for review and Running, with side chats nested beneath their main chat.
 
-<img src="docs/screenshot.png" width="360" alt="littlebrain showing its counter and tracked chats" />
+<img src="docs/screenshot.png" width="360" alt="Example chats showing recursive side chat nesting in littlebrain" />
+
+*Example chats.*
 
 ## Setup
 

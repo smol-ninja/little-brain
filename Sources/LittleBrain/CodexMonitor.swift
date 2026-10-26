@@ -66,7 +66,7 @@ private final class SocketWorker {
     var subscribed: Set<String> = []
     var lastCatalog = Date.distantPast
     var lastRefresh = Date.distantPast
-    let fields: Set<String> = ["title", "threadRuntimeStatus", "hasUnreadTurn", "latestTurnStartMessageId"]
+    let fields: Set<String> = ["title", "threadRuntimeStatus", "hasUnreadTurn", "latestTurnStartMessageId", "sideConversation", "forkedFromId", "sideConversationParentNavigationPath"]
 
     init(configuration: SourceConfiguration, cancellation: Cancellation, output: AsyncStream<SourceEvent>.Continuation) {
         self.configuration = configuration; self.cancellation = cancellation; self.output = output
@@ -181,8 +181,8 @@ private final class SocketWorker {
     }
 
     func publishCatalog() {
-        let ids = Set(catalog.keys).union(ephemeralCatalog.keys)
-        output.yield(.catalog(Set(ids.map { ChatID(value: $0) })))
+        let entries = catalog.merging(ephemeralCatalog) { saved, _ in saved }
+        output.yield(.catalog(Dictionary(uniqueKeysWithValues: entries.values.map { (ChatID(value: $0.id), $0.title) })))
     }
 
     func removeLiveViewer(_ viewer: String, from id: String) throws {
@@ -365,7 +365,9 @@ private final class SocketWorker {
         let observation = Observation(id: ChatID(value: id), title: String(title.prefix(240)),
                                       generation: projection["latestTurnStartMessageId"] as? String,
                                       runtime: status, unread: unread, createdAt: entry.createdAt,
-                                      isEphemeral: entry.isEphemeral ? true : nil)
+                                      isEphemeral: entry.isEphemeral ? true : nil,
+                                      parentID: sideChatParent(projection, id: id),
+                                      isSideChat: projection["sideConversation"] as? Bool)
         let previous = replicas[id]
         let refreshWasRequested = requested[id] != nil
         replicas[id] = Replica(owner: owner, revision: revision, fields: projection, observed: observation, refreshed: Date())
@@ -374,6 +376,19 @@ private final class SocketWorker {
         if previous?.observed != observation || refreshWasRequested {
             output.yield(.observed(observation))
         }
+    }
+
+    func sideChatParent(_ projection: [String: Any], id: String) -> ChatID? {
+        guard projection["sideConversation"] as? Bool == true else { return nil }
+        if let parent = projection["forkedFromId"] as? String, parent != id, UUID(uuidString: parent) != nil {
+            return ChatID(value: parent)
+        }
+        guard let path = projection["sideConversationParentNavigationPath"] as? String,
+              let url = URLComponents(string: path), url.scheme == nil, url.host == nil,
+              !(url.queryItems ?? []).contains(where: { $0.name == "hostId" && $0.value != "local" }) else { return nil }
+        let parts = url.path.split(separator: "/")
+        guard parts.count == 2, parts[0] == "local", String(parts[1]) != id, UUID(uuidString: String(parts[1])) != nil else { return nil }
+        return ChatID(value: String(parts[1]))
     }
 
     func patched(_ node: Any, path: [Any], operation: String, value: Any?) throws -> Any {
