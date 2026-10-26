@@ -51,6 +51,8 @@ enum AppBrand {
     static let accent = Color(red: 0.32, green: 0.47, blue: 0.98)
     static let logo = Bundle.main.url(forResource: "Logo", withExtension: "png")
         .flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 48, height: 48))
+    static let wordmark = Bundle.main.url(forResource: "Wordmark", withExtension: "pdf")
+        .flatMap { NSImage(contentsOf: $0) }
 }
 
 private struct BrainView: View {
@@ -107,7 +109,7 @@ private struct BrainView: View {
                 .allowsHitTesting(false)
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: monitor.snapshot)
-        .alert("little-brain", isPresented: Binding(get: { monitor.actionError != nil }, set: { if !$0 { monitor.actionError = nil } })) {
+        .alert("littlebrain", isPresented: Binding(get: { monitor.actionError != nil }, set: { if !$0 { monitor.actionError = nil } })) {
             Button("OK") { monitor.actionError = nil }
         } message: { Text(monitor.actionError ?? "") }
     }
@@ -119,8 +121,16 @@ private struct BrainView: View {
                 .frame(width: 48, height: 48)
                 .shadow(color: AppBrand.accent.opacity(0.24), radius: 9, y: 4)
                 .accessibilityHidden(true)
-            Text("little-brain")
-                .font(.system(size: 15, weight: .semibold)).tracking(-0.35)
+            if let wordmark = AppBrand.wordmark {
+                Image(nsImage: wordmark)
+                    .resizable().renderingMode(.template).scaledToFit()
+                    .frame(width: 140, height: 18)
+                    .foregroundStyle(.primary)
+                    .accessibilityLabel("littlebrain")
+            } else {
+                Text("littlebrain")
+                    .font(.system(size: 15, weight: .semibold)).tracking(-0.35)
+            }
             Spacer(minLength: 12)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(monitor.snapshot.isFresh ? "\(monitor.snapshot.readyCount)" : "—")
@@ -157,8 +167,8 @@ private struct BrainView: View {
             }
             .buttonStyle(PanelControlStyle())
             .keyboardShortcut("q")
-            .accessibilityLabel("Quit little-brain")
-            .help("Quit little-brain")
+            .accessibilityLabel("Quit littlebrain")
+            .help("Quit littlebrain")
         }
     }
 
@@ -168,7 +178,7 @@ private struct BrainView: View {
             else { try SMAppService.mainApp.unregister() }
             launchAtLogin = SMAppService.mainApp.status == .enabled
             if enabled && !launchAtLogin {
-                monitor.actionError = "Enable little-brain in System Settings > General > Login Items."
+                monitor.actionError = "Enable littlebrain in System Settings > General > Login Items."
             }
         } catch { monitor.actionError = "Could not change launch at login. \(error.localizedDescription)" }
     }

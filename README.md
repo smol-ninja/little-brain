@@ -1,8 +1,11 @@
-# little-brain
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/wordmark-dark.svg" />
+  <img src="docs/wordmark-light.svg" width="320" alt="littlebrain" />
+</picture>
 
-little-brain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it.
+littlebrain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it.
 
-<img src="docs/screenshot.png" width="360" alt="little-brain showing its counter and tracked chats" />
+<img src="docs/screenshot.png" width="360" alt="littlebrain showing its counter and tracked chats" />
 
 ## Setup
 
@@ -10,7 +13,7 @@ Requires macOS 26 or later, Codex, and Xcode with the macOS 27 SDK or later.
 
 Ask Codex:
 
-> Install little-brain from https://github.com/smol-ninja/little-brain on my Mac. Clone the repo, run ./build.sh, copy little-brain.app into /Applications, and launch it.
+> Install littlebrain from https://github.com/smol-ninja/little-brain on my Mac. Clone the repo, run ./build.sh, copy little-brain.app into /Applications, and launch it.
 
 Or build it yourself:
 
@@ -22,4 +25,4 @@ cp -R ../little-brain.app /Applications/
 open /Applications/little-brain.app
 ```
 
-Launch at login and the power button are at the bottom of the panel. little-brain tracks local Codex chats only.
+Launch at login and the power button are at the bottom of the panel. littlebrain tracks local Codex chats only.

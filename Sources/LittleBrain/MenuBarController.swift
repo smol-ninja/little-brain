@@ -25,9 +25,9 @@ private final class BrainPanel: NSPanel {
             button.image = logo
             button.imagePosition = .imageLeading
             button.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-            button.setAccessibilityLabel("little-brain")
+            button.setAccessibilityLabel("littlebrain")
         }
-        panel.title = "little-brain"
+        panel.title = "littlebrain"
         panel.level = .popUpMenu
         panel.isOpaque = false
         panel.backgroundColor = .clear

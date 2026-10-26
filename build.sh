@@ -10,14 +10,15 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/LittleBrain" "$APP/Contents/MacOS/LittleBrain"
 cp "$ROOT/Assets/little-brain.icns" "$APP/Contents/Resources/AppIcon.icns"
 cp "$ROOT/Assets/little-brain.png" "$APP/Contents/Resources/Logo.png"
+cp "$ROOT/Assets/Wordmark.pdf" "$APP/Contents/Resources/Wordmark.pdf"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>LittleBrain</string>
 <key>CFBundleIdentifier</key><string>com.local.littlebrain</string>
-<key>CFBundleName</key><string>little-brain</string>
-<key>CFBundleDisplayName</key><string>little-brain</string>
+<key>CFBundleName</key><string>littlebrain</string>
+<key>CFBundleDisplayName</key><string>littlebrain</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.2.0</string>
 <key>CFBundleVersion</key><string>4</string>
