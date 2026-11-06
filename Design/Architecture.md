@@ -1,86 +1,67 @@
 # Architecture
 
-little-brain derives its counter from the running Codex desktop app's local status and unread signals. The local SQLite catalog supplies saved chat IDs and titles, and live following announcements discover temporary chats. Neither discovery source determines whether a chat is running.
+littlebrain reads chat IDs and titles from Codex's local SQLite database. It follows those IDs over Codex's local socket to receive running and unread status. SQLite does not supply live status.
 
 ## Usage
 
 ```swift
 let monitor = PulseMonitor(configuration: .localDefault)
 monitor.start()
-// Render monitor.snapshot; both counts derive from its rows.
+// Render monitor.snapshot to show the counts and chats.
 monitor.open(row.id)
-// Opening dispatches a deep link. Only Codex's read signal clears a row.
+// Codex's read update clears a finished chat.
 ```
 
-## Ownership
+## Files
 
-- `PulseState.swift` owns cohort membership, baseline observations, and the counter rules as value types. It restores saved rows as stale and reconciles them with fresh source evidence.
-- `CodexMonitor.swift` owns the source adapter and `PulseMonitor`. A serial socket worker handles POSIX I/O outside the UI and cooperative executor. The adapter projects wire state into domain events. `PulseMonitor` alone applies those events, publishes snapshots, and persists companion metadata.
-- `MenuBarController.swift` owns the status item, glass panel, positioning, and dismissal lifecycle.
-- `Presentation.swift` renders the logo, counter, chat titles, and inline login and quit controls. It asks the monitor to navigate and never edits unread state.
-- `Main.swift` launches the app or its short metadata-only diagnostic.
+- `CodexMonitor.swift` reads the catalog, manages the socket connection, and converts updates into `SourceEvent` values. `PulseMonitor` applies those events, publishes snapshots, and saves tracking metadata.
+- `PulseState.swift` decides which chats to track and calculates the counts. It also groups chats by status, nests side chats, and splits lists into pages.
+- `MenuBarController.swift` manages the menu bar item and panel. It handles positioning, toggle clicks, outside clicks, and dismissal.
+- `Presentation.swift` renders the panel and its controls. It asks the monitor to open chats and leaves unread state to Codex.
+- `Main.swift` launches the app or runs the short metadata diagnostic.
 
-## Panel interaction
+## Local connection
 
-The status button and panel form one interaction surface. `MenuBarController` owns both; the app delegate only connects it to the chat monitor.
+The adapter uses Codex's private protocol. A Codex update may require an adapter update.
 
-- A left mouse-down on the status button toggles the panel. Mouse-up has no action.
-- Outside-click observers ignore the screen bounds of both the button and the panel. macOS can deliver a status-item press through the global observer, so window identity alone is insufficient.
-- Observers exist only while the panel is visible. Every dismissal removes them and clears the status button highlight.
-- Escape uses the panel's native `cancelOperation`, leaving native menus in charge of their own keyboard handling.
-- Opening the app calls an idempotent `show`; it cannot close an already open panel. Selecting a chat dismisses through the same controller.
-- Snapshot updates change the counter and resize a visible panel. They never open it.
+1. Read `~/.codex/state_5.sqlite` every two seconds. Select nonarchived rows with originator `Codex Desktop` or `codex_work_desktop` and source `vscode`, `cli`, or `appServer`. Validate each chat ID as a UUID. Project membership and chat age do not affect discovery. The Work originator fixes the missing Recents chats.
+2. Connect to `~/.codex/ipc/ipc.sock`. Each frame has a UInt32 little-endian length and UTF-8 JSON. Reject frames larger than 64 MiB.
+3. Initialize as `little-brain` and follow each local chat with `thread-stream-following-changed` version 1.
+4. Read `thread-stream-state-changed` version 11 snapshots and patches. Keep the title, runtime status, unread state, turn generation, and parent references. Discard chat bodies.
+5. Accept patches only from the snapshot's sender and at the expected base revision. History patches advance the revision even when the adapter discards their content. A revision gap marks the status stale and requests a snapshot.
+6. Request a snapshot after a read-state broadcast. Only a snapshot or patch from the established sender changes unread state.
+7. Refresh subscriptions every 15 seconds. Disconnects, missing replies, and incompatible data mark the status unavailable.
 
-This replaces the separate mouse-down dismissal and mouse-up toggle that could close and reopen the panel during a single click. The glass panel hosts the presentation without owning chat or login state.
+Codex also announces IDs that other local clients follow. If an ID is absent from SQLite, littlebrain requests its snapshot. It adds the chat only if the snapshot confirms `sideConversation: true`, `ephemeral: true`, and `threadSource: user`. This excludes background subagents. Snapshot creation timestamps use milliseconds.
 
-## Appearance
+Each temporary chat keeps a set of clients that follow it. The chat remains while at least one client follows it. When the last client leaves, littlebrain removes the temporary chat and its subscription. Codex replays these announcements after reconnecting.
 
-The blue glass logo appears in the panel header and beside the menu-bar counter. The header pairs the name with a large unread count and a smaller total. The inset list has two sections, Ready for review and Running, with status symbols and hover feedback. Finished unread chats and chats needing input or error review go in the first section. Active chats go in Running. Stale rows keep their last group and show an unavailable symbol. Section counts include tracked chats in that group; the header numerator still counts only finished unread chats. Parent labels added for context do not affect either counter. Launch at login and Quit sit directly in the footer; there is no options menu.
-
-`PanelMetrics` defines the width, corner radius, and section heights used by both SwiftUI and the window controller. The panel grows with its displayed rows, including parent labels, up to the available screen height. It has no scroll container. If the rows exceed that height, previous/next buttons in the footer page through them. Continued side chats repeat their parent labels, and section counters still show the full tracked totals. Native glass supplies the background; a faint blue reflection and edge highlight echo the logo. Reduced motion disables the spinner and scale animations, and reduced transparency uses a solid system background. Status symbols are hidden from accessibility so each row remains one named button.
-
-## Local integration
-
-The installed protocol was verified on 2026-10-26. It is internal and versioned, so a Codex update may require changes to this adapter.
-
-1. Enumerate all nonarchived top-level local desktop chats from `~/.codex/state_5.sqlite` using read-only SQLite. Accept the verified originators `Codex Desktop` and `codex_work_desktop` with sources `vscode`, `cli`, or `appServer`. Eligibility does not depend on project membership. No recency cutoff excludes older active chats. Repeat discovery every two seconds. See [Recents discovery](Recents-discovery.md) for the producer-filter correction.
-2. Connect to the existing `~/.codex/ipc/ipc.sock`. Frames are UInt32 little-endian lengths followed by UTF-8 JSON. The adapter bounds incoming frames to 64 MiB.
-3. Initialize as client type `little-brain`. Follow known IDs with `thread-stream-following-changed` version 1.
-4. Read `thread-stream-state-changed` version 11 snapshots and revisioned patches. Retain title, runtime status, unread state, generation metadata, and parent references; discard chat bodies.
-5. Accept patch batches only from the established owner at the expected base revision. Unrelated history patches still advance the revision. A gap invalidates freshness and requests another snapshot.
-6. Treat read-state broadcasts as refresh requests, not a second writer of unread state. This avoids applying unordered updates from another account or client.
-7. Refresh subscriptions every 15 seconds. Disconnects, lost owners, schema changes, and missing refresh replies leave rows visibly stale instead of inventing completion.
-
-Codex replays its live following announcements to newly connected clients. For an announced local ID absent from SQLite, the adapter follows the ID and admits it only after a snapshot confirms `sideConversation: true`, `ephemeral: true`, and `threadSource: user`. This excludes background subagents. Creation timestamps in these snapshots are milliseconds. A confirmed temporary chat uses the same counter rules and navigation as other chats. Its row is labeled Side chat and nested under its parent.
-
-The adapter tracks the announcing clients for each temporary chat. Closing one view keeps the chat if another remains. When the last viewer stops following or disconnects, the adapter removes that temporary chat and its subscription. On reconnect, Codex's announcements rebuild this catalog. An initially unread temporary chat is admitted even if it predates littlebrain, so restarting the companion does not lose its unread reply.
-
-A complete successful catalog read publishes the union of saved and confirmed temporary IDs. The reducer reconciles persisted rows against it, including chats archived or deleted while Pulse was closed. A failed read never masquerades as an empty catalog.
-
-## Chat hierarchy
-
-Side chats take their immediate parent from `forkedFromId`. If that ID is absent, a validated local `sideConversationParentNavigationPath` supplies the parent. These references apply only when Codex marks the conversation as a side chat; ordinary forks stay independent.
-
-Each section builds an outline from its tracked members and their ancestors. A running main chat with a finished side chat appears as a context label under Ready for review and as a tracked row under Running. Idle or closed ancestors remain context labels while descendants are tracked. Every side-chat level uses the label Side chat, with indented cards and connecting lines. Nesting is derived recursively, with cycle protection. Visual indentation stops increasing after six levels to preserve room for labels, while accessibility retains the actual level.
-
-Catalog titles name parents whose runtime snapshot has not loaded. Saved observations preserve ancestry across restart. Context rows never count as extra chats, and window height uses the displayed outline length rather than the counter total.
+A successful catalog read removes saved chats that were archived or deleted. A failed read retains the previous catalog. Tracking metadata lives in `~/Library/Application Support/little-brain/tracking.json`. Restored chats stay stale until Codex confirms their status.
 
 ## Counter rules
 
-Active chats join the cohort. Active and read chats remain tracked. Idle and unread tracked chats become Ready; idle and read chats leave. A new generation updates the existing row without duplicating it. Initial historical unread saved chats are excluded, while subsequently observed activity is admitted. Persisted baselines and membership support restart reconciliation.
+Active chats and chats waiting for input join the tracked list. A tracked chat that finishes with an unread reply goes into Ready for review. Opening it removes it after Codex confirms the read update. Opening a running chat keeps it tracked. A new turn updates the existing row.
 
-`notLoaded` is unavailable, not completed. Approval and input flags receive an attention state. A system error does not inflate the ready count. Ready means finished and unread, not necessarily successful.
+The header shows finished unread chats divided by all tracked chats. Waiting and error states go into Ready for review without increasing the header's finished count. Stale chats keep their last group and show an unavailable symbol. `notLoaded` does not mean finished.
 
-Opening a row uses `codex://threads/<UUID>`. The counter waits for Codex's confirmed read update rather than decrementing optimistically.
+On first observation, littlebrain excludes saved unread chats created before monitoring began. New activity, a new turn, or a read-to-unread transition can add them. Saved tracking preserves the monitoring start and previous observations across restarts. Temporary unread side chats can join on their first observation.
 
-## Design choice
+Opening a row sends `codex://threads/<UUID>`. The counter waits for Codex's read update.
 
-The design compared two sources: a live IPC follower and an observer of rollout files plus persisted unread arrays. The live follower became the starting design because it provides direct activity and read evidence. The app saves tracked chats and marks them stale until it can confirm their status after restart.
+## Side chats and pages
 
-File inference was rejected as a fallback: an unmatched task start can survive a crash, and delayed unread persistence cannot reliably distinguish an unseen completion from one already viewed. Silently switching sources would change the meaning of the counter.
+A side chat's immediate parent comes from `forkedFromId`. If absent, a validated local `sideConversationParentNavigationPath` supplies the parent. Ordinary forks remain separate chats.
 
-Accessibility scraping was also rejected because background and collapsed chats are difficult to observe and it requires extra permission. A separate app-server process does not own the desktop's current sessions.
+Each status section includes its tracked chats and the parents needed to identify them. A running parent can also appear as a label above its finished side chat in Ready for review. Parent labels do not increase the counts. Closed or idle parents remain labels while their descendants are tracked. Side chats use the label Side chat at every level. Cycle detection prevents repeated rows. Visible indentation stops after six levels, while accessibility retains the full depth.
+
+The panel grows to fit its rows up to the screen height. It never scrolls. Previous and next buttons handle longer lists and repeat parent labels when needed. Section counters show totals across all pages.
+
+## Panel behavior
+
+The status button toggles the panel on mouse-down. Clicking outside dismisses it. Selecting a chat or pressing Escape also dismisses it. Opening the app shows the panel if it is closed. Status updates resize a visible panel without opening it.
+
+The panel uses native glass, the blue logo, and the wordmark. Reduced motion disables spinner and scale animations. Reduced transparency uses a solid system background. Each chat row is one accessibility button. Launch at login and Quit sit in the footer.
 
 ## Limits
 
-Local Codex chats and their open temporary conversations are supported. Background subagents are excluded. Remote-host and ChatGPT cloud conversations need independently verified sources. Full snapshots arrive transiently over the local socket, although only small metadata projections are retained. The companion has no public stable Codex API to rely on; incompatibility is surfaced visibly.
+The app supports local desktop chats and their open temporary side chats. Remote hosts and ChatGPT cloud conversations need separate status sources. The app does not infer activity or read state from rollout files because a crash or delayed write can leave those files out of date.

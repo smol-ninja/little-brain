@@ -301,7 +301,7 @@ private final class SocketWorker {
         if method == "thread-archived" || method == "thread-unarchived" { lastCatalog = .distantPast; return }
         guard catalog[id] != nil || ephemeralCatalog[id] != nil || liveViewers[id] != nil else { lastCatalog = .distantPast; return }
         if method == "thread-read-state-changed" {
-            // Identity-bearing broadcasts only invalidate; the owner remains the authority.
+            // Request the snapshot sender's current unread state after a read broadcast.
             try follow(id)
             return
         }
@@ -372,7 +372,7 @@ private final class SocketWorker {
         let refreshWasRequested = requested[id] != nil
         replicas[id] = Replica(owner: owner, revision: revision, fields: projection, observed: observation, refreshed: Date())
         requested.removeValue(forKey: id)
-        // Fresh snapshots restore freshness even when metadata is unchanged.
+        // A requested snapshot confirms the status even if no fields changed.
         if previous?.observed != observation || refreshWasRequested {
             output.yield(.observed(observation))
         }

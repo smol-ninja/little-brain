@@ -268,7 +268,7 @@ private final class SocketFixture: @unchecked Sendable {
                   "params":["conversationId":chatID,"hostId":"local","hasUnreadTurn":false]])
         try expectFollow()
         try snapshot(revision: 5, runtime: "idle", unread: false)
-        // Ensure the last frame is consumed before observing socket EOF.
+        // Let the source consume the last frame before closing the socket.
         Thread.sleep(forTimeInterval: 0.1)
         Darwin.close(peer); peer = -1
     }

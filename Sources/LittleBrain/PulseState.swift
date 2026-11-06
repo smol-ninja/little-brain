@@ -230,7 +230,7 @@ struct PulseState {
                 guard shouldTrack else { baselines[observation.id] = observation; return }
                 phase = .error
             case .unavailable:
-                // Lack of authority never becomes completion or a read receipt.
+                // Keep the last state until Codex supplies its status.
                 if existing != nil { tracked[observation.id]?.isFresh = false }
                 return
             }
