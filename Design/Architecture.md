@@ -58,7 +58,7 @@ The panel grows to fit its rows up to the screen height. It never scrolls. Previ
 
 ## Panel behavior
 
-The status button toggles the panel on mouse-down. Clicking outside dismisses it. Selecting a chat or pressing Escape also dismisses it. Opening the app shows the panel if it is closed. Status updates resize a visible panel without opening it.
+The status button toggles the panel on mouse-down. Outside-click handling uses the full status-item window, including its top edge. The button's smaller bounds only position the panel. Clicking outside the status item and panel dismisses it. Selecting a chat or pressing Escape also dismisses it. Opening the app shows the panel if it is closed. Status updates resize a visible panel without opening it.
 
 The panel uses native glass, the blue logo, and the wordmark. Reduced motion disables spinner and scale animations. Reduced transparency uses a solid system background. Each chat row is one accessibility button. Launch at login and Quit sit in the footer.
 

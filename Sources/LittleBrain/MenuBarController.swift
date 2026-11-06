@@ -1,5 +1,15 @@
 import AppKit
 
+struct StatusItemGeometry {
+    let buttonFrame: NSRect
+    let windowFrame: NSRect
+
+    func containsActivationPoint(_ point: NSPoint) -> Bool {
+        point.x >= windowFrame.minX && point.x < windowFrame.maxX &&
+        point.y >= windowFrame.minY && point.y <= windowFrame.maxY
+    }
+}
+
 private final class BrainPanel: NSPanel {
     var onDismiss: (() -> Void)?
     override var canBecomeKey: Bool { true }
@@ -91,20 +101,20 @@ private final class BrainPanel: NSPanel {
         item.button?.highlight(false)
     }
 
-    private var buttonFrame: NSRect? {
+    private var statusItemGeometry: StatusItemGeometry? {
         guard let button = item.button, let window = button.window else { return nil }
-        return window.convertToScreen(button.convert(button.bounds, to: nil))
+        return StatusItemGeometry(buttonFrame: window.convertToScreen(button.convert(button.bounds, to: nil)),
+                                  windowFrame: window.frame)
     }
 
     private func dismissIfOutside(at point: NSPoint) {
-        // macOS may deliver status-item presses through the global monitor.
-        // The button owns those presses; treating them as outside would toggle twice.
-        guard panel.isVisible, !panel.frame.contains(point), buttonFrame?.contains(point) != true else { return }
+        // The status item handles presses throughout its native window.
+        guard panel.isVisible, !panel.frame.contains(point), statusItemGeometry?.containsActivationPoint(point) != true else { return }
         dismiss()
     }
 
     private func positionPanel() {
-        guard let anchor = buttonFrame, let screen = item.button?.window?.screen ?? NSScreen.main else { return }
+        guard let anchor = statusItemGeometry?.buttonFrame, let screen = item.button?.window?.screen ?? NSScreen.main else { return }
         let height = min(PanelMetrics.height(for: rowCount), screen.visibleFrame.height - 40)
         let width = PanelMetrics.width
         let x = min(max(anchor.midX - width / 2, screen.visibleFrame.minX + 8), screen.visibleFrame.maxX - width - 8)

@@ -8,7 +8,7 @@ swift test
 codesign --verify --deep --strict ../little-brain.app
 ```
 
-The tests cover counter updates, read confirmation, restarts, stale status, side chat nesting, pagination, and saved-chat discovery across Recents and projects. Socket tests use a temporary SQLite database and Unix socket. They check fragmented frames, revision gaps, snapshot refreshes, and exclusion of archived chats, subagents, and unrelated app origins.
+The tests cover counter updates, read confirmation, restarts, stale status, side chat nesting, pagination, and saved-chat discovery across Recents and projects. The status-item test checks the measured button and window bounds, including the top edge and adjacent items. Socket tests use a temporary SQLite database and Unix socket. They check fragmented frames, revision gaps, snapshot refreshes, and exclusion of archived chats, subagents, and unrelated app origins.
 
 After installing a build, check the following in Codex:
 
