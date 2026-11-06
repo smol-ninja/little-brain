@@ -231,7 +231,7 @@ private final class SocketWorker {
         }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 1000)
-        let sql = "SELECT id, COALESCE(NULLIF(name,''),'Untitled chat'), created_at FROM threads WHERE archived=0 AND source IN ('vscode','cli','appServer') AND originator='Codex Desktop' ORDER BY updated_at DESC"
+        let sql = "SELECT id, COALESCE(NULLIF(name,''),'Untitled chat'), created_at FROM threads WHERE archived=0 AND source IN ('vscode','cli','appServer') AND originator IN ('Codex Desktop','codex_work_desktop') ORDER BY updated_at DESC"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { throw SourceFailure("Codex catalog changed · update needed") }
         defer { sqlite3_finalize(statement) }

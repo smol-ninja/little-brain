@@ -5,6 +5,83 @@ import SQLite3
 @testable import LittleBrain
 
 final class SocketContractTests: XCTestCase {
+    func testDesktopAndWorkChatsAreDiscoveredAcrossRecentsAndProjects() async throws {
+        let fixture = try SocketFixture(extraCatalogSQL: """
+            ALTER TABLE threads ADD COLUMN project_id TEXT;
+            INSERT INTO threads VALUES
+            ('00000000-0000-4000-8000-000000000002','Work recent',0,1,'vscode','codex_work_desktop',0,NULL),
+            ('00000000-0000-4000-8000-000000000003','Desktop project',0,1,'cli','Codex Desktop',0,'project'),
+            ('00000000-0000-4000-8000-000000000004','Work project',0,1,'appServer','codex_work_desktop',0,'project'),
+            ('00000000-0000-4000-8000-000000000005','Archived desktop',0,1,'vscode','Codex Desktop',1,NULL),
+            ('00000000-0000-4000-8000-000000000006','Archived Work',0,1,'vscode','codex_work_desktop',1,NULL),
+            ('00000000-0000-4000-8000-000000000007','Desktop subagent',0,1,'{"subagent":{}}','Codex Desktop',0,NULL),
+            ('00000000-0000-4000-8000-000000000008','Work subagent',0,1,'{"subagent":{}}','codex_work_desktop',0,NULL),
+            ('00000000-0000-4000-8000-000000000009','Other app',0,1,'vscode','other_desktop',0,NULL),
+            ('00000000-0000-4000-8000-000000000010','Standalone CLI',0,1,'cli','Codex CLI',0,NULL),
+            ('00000000-0000-4000-8000-000000000011','Other source',0,1,'other','codex_work_desktop',0,NULL);
+            """)
+        defer { fixture.close() }
+        let serverFinished = expectation(description: "catalog fixture completed")
+        let initialSubscriptionsSent = DispatchSemaphore(value: 0)
+        DispatchQueue(label: "fixture.desktop-catalog").async {
+            defer {
+                if fixture.peer >= 0 { Darwin.close(fixture.peer); fixture.peer = -1 }
+                serverFinished.fulfill()
+            }
+            do {
+                try fixture.handshake()
+                guard initialSubscriptionsSent.wait(timeout: .now() + 5) == .success else { throw SocketFixture.FixtureError.failed }
+                // Respond to the actual subscriptions, including any wrongly admitted IDs.
+                while true {
+                    var ready = pollfd(fd: fixture.peer, events: Int16(POLLIN), revents: 0)
+                    let result = Darwin.poll(&ready, 1, 0)
+                    if result == 0 { break }
+                    guard result > 0 else { throw SocketFixture.FixtureError.failed }
+                    let message = try fixture.read()
+                    let params = try XCTUnwrap(message["params"] as? [String: Any])
+                    let id = try XCTUnwrap(params["conversationId"] as? String)
+                    XCTAssertEqual(message["method"] as? String, "thread-stream-following-changed")
+                    XCTAssertEqual(params["hostId"] as? String, "local")
+                    XCTAssertEqual(params["following"] as? Bool, true)
+                    try fixture.send(["type":"broadcast", "method":"thread-stream-state-changed", "version":11,
+                                      "sourceClientId":"fixture-owner", "params":["conversationId":id,"hostId":"local",
+                                        "change":["type":"snapshot","revision":1,"conversationState":[
+                                            "title":"Observed chat", "threadRuntimeStatus":["type":"active","activeFlags":[]],
+                                            "hasUnreadTurn":false, "latestTurnStartMessageId":"turn-1"
+                                        ]]]])
+                }
+            } catch { XCTFail("Catalog fixture failed: \(error)") }
+        }
+        let source = CodexSource(configuration: .init(codexHome: fixture.home))
+        let finished = expectation(description: "catalog source disconnected")
+        let collector = Task { () -> (Set<ChatID>, [ChatID], Int) in
+            var catalog: Set<ChatID> = []
+            var observed: [ChatID] = []
+            var state = PulseState(now: Date(timeIntervalSince1970: 100))
+            for await event in await source.observations() {
+                state.apply(event)
+                switch event {
+                case .catalog(let titles): catalog = Set(titles.keys)
+                case .observed(let row): observed.append(row.id)
+                case .health(.live): initialSubscriptionsSent.signal()
+                case .health(.unavailable):
+                    finished.fulfill()
+                    return (catalog, observed, state.snapshot.totalCount)
+                default: break
+                }
+            }
+            return (catalog, observed, state.snapshot.totalCount)
+        }
+        await fulfillment(of: [finished, serverFinished], timeout: 8)
+        collector.cancel()
+        let (catalog, observed, total) = await collector.value
+        let expected = Set((1...4).map { ChatID(value: String(format: "00000000-0000-4000-8000-%012d", $0)) })
+        XCTAssertEqual(catalog, expected)
+        XCTAssertEqual(Set(observed), expected)
+        XCTAssertEqual(observed.count, 4)
+        XCTAssertEqual(total, 4)
+    }
+
     func testEphemeralChatsJoinFromLiveAnnouncementsAndLeaveWhenTheirLastViewerCloses() async throws {
         let fixture = try SocketFixture()
         defer { fixture.close() }
@@ -140,12 +217,12 @@ private final class SocketFixture: @unchecked Sendable {
     let chatID = "00000000-0000-4000-8000-000000000001"
     var listener: Int32 = -1
     var peer: Int32 = -1
-    init() throws {
+    init(extraCatalogSQL: String = "") throws {
         try FileManager.default.createDirectory(at: home.appendingPathComponent("ipc"), withIntermediateDirectories: true)
         var db: OpaquePointer?
         guard sqlite3_open(home.appendingPathComponent("state_5.sqlite").path, &db) == SQLITE_OK else { throw FixtureError.failed }
         defer { sqlite3_close(db) }
-        let sql = "CREATE TABLE threads(id TEXT,name TEXT,created_at INTEGER,updated_at INTEGER,source TEXT,originator TEXT,archived INTEGER); INSERT INTO threads VALUES('\(chatID)','Fixture chat',0,1,'vscode','Codex Desktop',0);"
+        let sql = "CREATE TABLE threads(id TEXT,name TEXT,created_at INTEGER,updated_at INTEGER,source TEXT,originator TEXT,archived INTEGER); INSERT INTO threads VALUES('\(chatID)','Fixture chat',0,1,'vscode','Codex Desktop',0);" + extraCatalogSQL
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { throw FixtureError.failed }
         listener = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         var address = sockaddr_un(); address.sun_family = sa_family_t(AF_UNIX)

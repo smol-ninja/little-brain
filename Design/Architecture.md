@@ -43,7 +43,7 @@ The blue glass logo appears in the panel header and beside the menu-bar counter.
 
 The installed protocol was verified on 2026-10-26. It is internal and versioned, so a Codex update may require changes to this adapter.
 
-1. Enumerate all nonarchived top-level Codex Desktop chats from `~/.codex/state_5.sqlite` using read-only SQLite. No recency cutoff excludes older active chats. Repeat discovery every two seconds.
+1. Enumerate all nonarchived top-level local desktop chats from `~/.codex/state_5.sqlite` using read-only SQLite. Accept the verified originators `Codex Desktop` and `codex_work_desktop` with sources `vscode`, `cli`, or `appServer`. Eligibility does not depend on project membership. No recency cutoff excludes older active chats. Repeat discovery every two seconds. See [Recents discovery](Recents-discovery.md) for the producer-filter correction.
 2. Connect to the existing `~/.codex/ipc/ipc.sock`. Frames are UInt32 little-endian lengths followed by UTF-8 JSON. The adapter bounds incoming frames to 64 MiB.
 3. Initialize as client type `little-brain`. Follow known IDs with `thread-stream-following-changed` version 1.
 4. Read `thread-stream-state-changed` version 11 snapshots and revisioned patches. Retain title, runtime status, unread state, generation metadata, and parent references; discard chat bodies.
