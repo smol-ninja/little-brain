@@ -27,7 +27,15 @@ def make_disk_image(app: Path, image: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Use an Apple silicon Mac with Xcode. Store your notarization credentials with "
+            "xcrun notarytool store-credentials. Test the resulting DMG on a compatible Mac, "
+            "then attach it as littlebrain.dmg to a stable GitHub release. The download page "
+            "finds that asset on the latest release."
+        ),
+    )
     parser.add_argument("--identity", required=True, help="Developer ID Application signing identity")
     parser.add_argument("--notary-profile", required=True, help="notarytool Keychain profile")
     parser.add_argument("output_directory", type=Path)
