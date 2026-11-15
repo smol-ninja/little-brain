@@ -27,4 +27,4 @@ open /Applications/little-brain.app
 
 Once installed, open Codex and littlebrain. Littlebrain connects through the current Mac user's default `~/.codex` directory without further configuration.
 
-The installed version appears below Launch at login in the panel.
+The installed version appears next to Launch at login in the panel.
