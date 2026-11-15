@@ -6,6 +6,16 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>little-brain</title>
         <item>
+            <title>1.4.10</title>
+            <pubDate>Sun, 15 Nov 2026 17:34:25 +0000</pubDate>
+            <sparkle:version>17</sparkle:version>
+            <sparkle:shortVersionString>1.4.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description><![CDATA[<p>A download arrow appears beside the version when an update is available. The Mac installer filename now includes its version.</p>]]></description>
+            <enclosure url="https://github.com/smol-ninja/little-brain/releases/download/v1.4.10/littlebrain-1.4.10.dmg" length="3560449" type="application/octet-stream" sparkle:edSignature="rv1FxnhdkokjbPuHEXairE+ml/vOgbd+XqSsQx0Npo7ZlMT/MoenxhxwnhPEdK8+gikc6YOVriIZt3iLdnXGAA=="/>
+        </item>
+        <item>
             <title>1.4.9</title>
             <pubDate>Sun, 15 Nov 2026 17:24:57 +0000</pubDate>
             <sparkle:version>16</sparkle:version>
@@ -28,6 +38,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: xyx5r5ii6hatAWBurKV+PxHPsnlvfolxSv6/rGjbhzMSV61sj9HAyDingiMyBZ0iBWYhGNWuW+3OAGk3qKxrCw==
-length: 2096
+edSignature: AO2mZg0dQ/CvgDfmfkoyZ0z5fkwvFRJkOw+/2FtiOMSnOCWi17kEUj7QadHbnxbArU8r5hmquvo6H5E/MsPvBw==
+length: 2974
 -->
