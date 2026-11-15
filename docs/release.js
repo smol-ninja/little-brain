@@ -1,7 +1,7 @@
 const repository = 'smol-ninja/little-brain';
 const releasesURL = `https://github.com/${repository}/releases`;
 const button = document.querySelector('#download');
-const unavailable = document.querySelector('#download-unavailable');
+const fallbackTag = new URL(button.href).pathname.split('/').at(-2);
 
 button.addEventListener('click', () => {
   window.umami?.track('download_click');
@@ -15,6 +15,7 @@ async function showLatestDownload() {
     if (!response.ok) return;
 
     const release = await response.json();
+    if (release.tag_name.localeCompare(fallbackTag, 'en', { numeric: true }) <= 0) return;
     const version = release.tag_name.replace(/^v/, '');
     const installers = release.assets.filter(asset => asset.state === 'uploaded' && asset.size > 0);
     const installer = installers.find(asset => asset.name === `littlebrain-${version}.dmg`)
@@ -22,10 +23,8 @@ async function showLatestDownload() {
     if (!installer) return;
 
     button.href = `${releasesURL}/download/${encodeURIComponent(release.tag_name)}/${encodeURIComponent(installer.name)}`;
-    unavailable.hidden = true;
-    button.hidden = false;
   } catch {
-    // Keep the download disabled when GitHub cannot confirm an installer.
+    // Keep the verified download when GitHub cannot confirm a newer installer.
   }
 }
 
