@@ -20,13 +20,15 @@ private final class BrainPanel: NSPanel {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let panel = BrainPanel(contentRect: .zero,
                                   styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    private let onShow: () -> Void
     private var outsideMonitor: Any?
     private var localMonitor: Any?
     private var rowCount = 0
     private var updateAvailable = false
     private var chatLabel = ""
 
-    init(content: NSView) {
+    init(content: NSView, onShow: @escaping () -> Void) {
+        self.onShow = onShow
         super.init()
         if let button = item.button {
             button.target = self
@@ -89,6 +91,7 @@ private final class BrainPanel: NSPanel {
 
     func show() {
         guard !panel.isVisible else { return }
+        onShow()
         positionPanel()
         panel.makeKeyAndOrderFront(nil)
         panel.makeFirstResponder(nil)

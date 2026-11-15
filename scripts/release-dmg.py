@@ -3,6 +3,7 @@
 
 import argparse
 import hashlib
+from html import escape
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,7 @@ def main():
     parser.add_argument("--identity", required=True, help="Developer ID Application signing identity")
     parser.add_argument("--notary-profile", required=True, help="notarytool Keychain profile")
     parser.add_argument("--sparkle-account", default="littlebrain", help="Sparkle signing key in Keychain")
+    parser.add_argument("--release-notes", help="Plain text for the in-app update window")
     parser.add_argument("output_directory", type=Path)
     args = parser.parse_args()
     directory = args.output_directory.resolve()
@@ -170,8 +172,8 @@ def main():
         if previous.exists():
             run(tools / "sign_update", "--account", args.sparkle_account, "--verify", previous)
             shutil.copy2(previous, archives / "appcast.xml")
-        (archives / "littlebrain.html").write_text(
-            "<p>Update littlebrain from the version button beside Launch at login.</p>")
+        if args.release_notes:
+            (archives / "littlebrain.html").write_text(f"<p>{escape(args.release_notes)}</p>", encoding="utf-8")
         run(tools / "generate_appcast", "--account", args.sparkle_account,
             "--maximum-deltas", "0", "--download-url-prefix", prefix, "--embed-release-notes", archives)
         generated = archives / "appcast.xml"

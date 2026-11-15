@@ -6,17 +6,18 @@ import ServiceManagement
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitor = PulseMonitor()
     private let updater = AppUpdater()
+    private let loginItem = LoginItem()
     private var menuBar: MenuBarController!
     private var subscription: AnyCancellable?
     private var updateSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        let hosting = NSHostingView(rootView: BrainView(monitor: monitor, updater: updater, dismiss: { [weak self] in
+        let hosting = NSHostingView(rootView: BrainView(monitor: monitor, updater: updater, loginItem: loginItem, dismiss: { [weak self] in
             self?.menuBar.dismiss()
         }))
         hosting.sizingOptions = []
-        menuBar = MenuBarController(content: hosting)
+        menuBar = MenuBarController(content: hosting, onShow: loginItem.refresh)
         subscription = monitor.$snapshot.sink { [weak self] snapshot in self?.menuBar.update(snapshot) }
         updateSubscription = updater.$updateAvailable.sink { [weak self] available in
             self?.menuBar.setUpdateAvailable(available)
@@ -37,6 +38,23 @@ import ServiceManagement
     func applicationWillTerminate(_ notification: Notification) {
         menuBar.dismiss()
         monitor.stop()
+    }
+}
+
+@MainActor private final class LoginItem: ObservableObject {
+    private let service = SMAppService.mainApp
+    @Published private(set) var status: SMAppService.Status = .notRegistered
+
+    var isRegistered: Bool { status == .enabled || status == .requiresApproval }
+
+    func refresh() {
+        status = service.status
+    }
+
+    func setRegistered(_ registered: Bool) throws {
+        defer { refresh() }
+        if registered { try service.register() }
+        else { try service.unregister() }
     }
 }
 
@@ -72,11 +90,11 @@ enum AppBrand {
 private struct BrainView: View {
     @ObservedObject var monitor: PulseMonitor
     @ObservedObject var updater: AppUpdater
+    @ObservedObject var loginItem: LoginItem
     let dismiss: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var pageIndex = 0
 
     var body: some View {
@@ -180,7 +198,7 @@ private struct BrainView: View {
         HStack(spacing: 8) {
             Text("Launch at login")
                 .foregroundStyle(.secondary)
-            Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+            Toggle("Launch at login", isOn: Binding(get: { loginItem.isRegistered }, set: setLaunchAtLogin))
                 .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
             if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
                 Button {
@@ -236,10 +254,8 @@ private struct BrainView: View {
 
     private func setLaunchAtLogin(_ enabled: Bool) {
         do {
-            if enabled { try SMAppService.mainApp.register() }
-            else { try SMAppService.mainApp.unregister() }
-            launchAtLogin = SMAppService.mainApp.status == .enabled
-            if enabled && !launchAtLogin {
+            try loginItem.setRegistered(enabled)
+            if enabled && loginItem.status == .requiresApproval {
                 monitor.actionError = "Enable littlebrain in System Settings > General > Login Items."
             }
         } catch { monitor.actionError = "Could not change launch at login. \(error.localizedDescription)" }
