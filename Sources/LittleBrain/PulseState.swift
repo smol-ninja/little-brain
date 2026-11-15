@@ -83,9 +83,9 @@ struct ChatOutlineRow: Equatable, Identifiable {
 }
 
 struct ChatPage {
-    var review: [ChatOutlineRow] = []
-    var running: [ChatOutlineRow] = []
-    var count: Int { review.count + running.count }
+    let review: [ChatOutlineRow]
+    let running: [ChatOutlineRow]
+    var rowCount: Int { review.count + running.count }
 }
 
 struct PulseSnapshot: Equatable, Sendable {
@@ -94,7 +94,6 @@ struct PulseSnapshot: Equatable, Sendable {
     var contexts: [ChatID: ChatContext] = [:]
     var reviewOutline: [ChatOutlineRow] { outline(for: reviewRows) }
     var runningOutline: [ChatOutlineRow] { outline(for: runningRows) }
-    var displayedRowCount: Int { reviewOutline.count + runningOutline.count }
     var reviewRows: [TrackedChat] { rows.filter { $0.phase == .ready || $0.phase == .waiting || $0.phase == .error } }
     var runningRows: [TrackedChat] { rows.filter { $0.phase == .working || $0.phase == .unknown } }
     var readyCount: Int { rows.filter { $0.phase == .ready }.count }
@@ -104,28 +103,21 @@ struct PulseSnapshot: Equatable, Sendable {
     var isFresh: Bool { health.isLive && rows.allSatisfy(\.isFresh) }
     var menuLabel: String { isFresh ? "\(readyCount)/\(totalCount)" : "—/\(totalCount)" }
 
-    func pages(rowLimit: Int) -> [ChatPage] {
-        let limit = max(1, rowLimit)
-        var result: [ChatPage] = []
-        var page = ChatPage()
-        for (rows, key) in [(reviewOutline, \ChatPage.review), (runningOutline, \ChatPage.running)] {
-            var ancestors: [ChatOutlineRow] = []
-            for row in rows {
-                ancestors.removeAll { $0.depth >= row.depth }
-                if page.count == limit {
-                    result.append(page)
-                    page = ChatPage()
-                    // Repeat parent labels above a side chat that starts a new page.
-                    page[keyPath: key] = ancestors.suffix(limit - 1).map {
-                        ChatOutlineRow(context: $0.context, chat: nil, depth: $0.depth)
-                    }
-                }
-                page[keyPath: key].append(row)
-                ancestors.append(row)
-            }
+    var pages: [ChatPage] {
+        let chatsPerPage = 10
+        let review = reviewOutline
+        let running = runningOutline
+        guard totalCount > chatsPerPage else { return [ChatPage(review: review, running: running)] }
+
+        let reviewChats = review.compactMap(\.chat)
+        let runningChats = running.compactMap(\.chat)
+        return stride(from: 0, to: totalCount, by: chatsPerPage).map { offset in
+            let reviewOnPage = reviewChats.dropFirst(offset).prefix(chatsPerPage)
+            let runningOffset = max(0, offset - reviewChats.count)
+            let runningOnPage = runningChats.dropFirst(runningOffset).prefix(chatsPerPage - reviewOnPage.count)
+            // Rebuild each outline so a side chat keeps its parent labels across pages.
+            return ChatPage(review: outline(for: Array(reviewOnPage)), running: outline(for: Array(runningOnPage)))
         }
-        if page.count > 0 || result.isEmpty { result.append(page) }
-        return result
     }
 
     private func outline(for members: [TrackedChat]) -> [ChatOutlineRow] {

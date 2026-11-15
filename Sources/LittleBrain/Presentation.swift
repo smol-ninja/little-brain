@@ -48,8 +48,10 @@ enum PanelMetrics {
         headerHeight + footerHeight + sectionHeaderHeight * 2 + sectionSpacing + listInset * 2 + CGFloat(count) * rowHeight
     }
 
-    static func rowCapacity(for height: CGFloat) -> Int {
-        max(1, Int(floor((height - self.height(for: 0)) / rowHeight)))
+    static func fittedRowHeight(rowCount: Int, panelHeight: CGFloat) -> CGFloat {
+        guard rowCount > 0 else { return rowHeight }
+        let available = max(0, panelHeight - height(for: 0))
+        return min(rowHeight, floor(available / CGFloat(rowCount)))
     }
 }
 
@@ -71,25 +73,27 @@ private struct BrainView: View {
     @State private var pageIndex = 0
 
     var body: some View {
+        let pages = monitor.snapshot.pages
+        let current = min(pageIndex, pages.count - 1)
+        let rowCount = pages.map(\.rowCount).max() ?? 0
         GeometryReader { geometry in
-            let pages = monitor.snapshot.pages(rowLimit: PanelMetrics.rowCapacity(for: geometry.size.height))
-            let current = min(pageIndex, pages.count - 1)
-            panel(page: pages[current], index: current, pageCount: pages.count)
+            let rowHeight = PanelMetrics.fittedRowHeight(rowCount: rowCount, panelHeight: geometry.size.height)
+            panel(page: pages[current], rowHeight: rowHeight, index: current, pageCount: pages.count)
                 .onChange(of: pages.count) { _, count in pageIndex = min(pageIndex, count - 1) }
         }
     }
 
-    private func panel(page: ChatPage, index: Int, pageCount: Int) -> some View {
+    private func panel(page: ChatPage, rowHeight: CGFloat, index: Int, pageCount: Int) -> some View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, 20)
                 .frame(height: PanelMetrics.headerHeight)
 
             VStack(spacing: PanelMetrics.sectionSpacing) {
-                ChatSection(title: "Ready for review", count: monitor.snapshot.reviewRows.count, rows: page.review) { id in
+                ChatSection(title: "Ready for review", count: monitor.snapshot.reviewRows.count, rows: page.review, rowHeight: rowHeight) { id in
                     monitor.open(id); dismiss()
                 }
-                ChatSection(title: "Running", count: monitor.snapshot.runningRows.count, rows: page.running) { id in
+                ChatSection(title: "Running", count: monitor.snapshot.runningRows.count, rows: page.running, rowHeight: rowHeight) { id in
                     monitor.open(id); dismiss()
                 }
             }.padding(PanelMetrics.listInset)
@@ -226,6 +230,7 @@ private struct ChatSection: View {
     let title: String
     let count: Int
     let rows: [ChatOutlineRow]
+    let rowHeight: CGFloat
     let open: (ChatID) -> Void
 
     var body: some View {
@@ -240,13 +245,14 @@ private struct ChatSection: View {
             .frame(height: PanelMetrics.sectionHeaderHeight)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            ForEach(rows) { row in ChatRow(entry: row) { open(row.id) } }
+            ForEach(rows) { row in ChatRow(entry: row, height: rowHeight) { open(row.id) } }
         }
     }
 }
 
 private struct ChatRow: View {
     let entry: ChatOutlineRow
+    let height: CGFloat
     private var row: TrackedChat? { entry.chat }
     let open: () -> Void
     @State private var hovering = false
@@ -266,7 +272,7 @@ private struct ChatRow: View {
                     .foregroundStyle(hovering ? AppBrand.accent : Color.secondary.opacity(0.45))
                     .accessibilityHidden(true)
             }
-            .padding(.horizontal, 12).frame(height: PanelMetrics.rowHeight)
+            .padding(.horizontal, 12).frame(height: height)
             .background(hovering ? AppBrand.accent.opacity(0.09) : Color.primary.opacity(entry.depth > 0 ? 0.025 : 0), in: RoundedRectangle(cornerRadius: 12))
             .contentShape(RoundedRectangle(cornerRadius: 12))
             .padding(.leading, CGFloat(min(entry.depth, 6)) * 18)

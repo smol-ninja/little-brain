@@ -25,7 +25,7 @@ final class PulseStateTests: XCTestCase {
         XCTAssertEqual(state.snapshot.runningOutline.map(\.depth), [0, 1, 2])
         XCTAssertEqual(state.snapshot.runningOutline.map { $0.context.displayTitle }, ["Chat 1", "Side chat", "Side chat"])
         XCTAssertEqual(state.snapshot.runningOutline.compactMap(\.chat).map(\.id), [main.id, nested.id])
-        XCTAssertEqual(state.snapshot.displayedRowCount, 5)
+        XCTAssertEqual(state.snapshot.pages.first?.rowCount, 5)
 
         main.runtime = .idle
         side.unread = false
@@ -84,33 +84,35 @@ final class PulseStateTests: XCTestCase {
         XCTAssertEqual(state.snapshot.menuLabel, "4/4")
     }
 
-    func testOverflowPagesKeepEveryChatAndRepeatParentContext() {
+    func testPagesCountTenChatsIncludingSideChatsAndRepeatParentContext() {
         var state = PulseState(now: epoch)
         let main = chat(1)
-        state.apply(.observed(main))
-        for number in 2...10 {
+        state.apply(.observed(main), now: epoch)
+        var ready = chat(2, runtime: .idle, unread: true, created: 1001)
+        ready.parentID = main.id; ready.isSideChat = true
+        state.apply(.observed(ready), now: epoch)
+        for number in 3...10 {
             var side = chat(number)
             side.parentID = main.id; side.isSideChat = true
-            state.apply(.observed(side))
+            state.apply(.observed(side), now: epoch)
         }
-        state.apply(.observed(chat(11, runtime: .waiting)))
-        let expected = Set((1...11).map { chat($0).id })
-        for limit in 1...15 {
-            let pages = state.snapshot.pages(rowLimit: limit)
-            XCTAssertTrue(pages.allSatisfy { $0.count <= limit && $0.count > 0 })
-            let actual = pages.flatMap { ($0.review + $0.running).compactMap(\.chat).map(\.id) }
-            XCTAssertEqual(Set(actual), expected)
-            XCTAssertEqual(actual.count, 11, "Repeated parent labels must not become tracked rows")
-            for page in pages.dropFirst() where limit > 1 {
-                XCTAssertEqual(page.running.first?.id, main.id)
-                XCTAssertNil(page.running.first?.chat)
-                XCTAssertTrue(page.running.dropFirst().allSatisfy { $0.depth == 1 && $0.chat != nil })
-            }
-        }
-        XCTAssertEqual(state.snapshot.pages(rowLimit: 20).count, 1)
-        let empty = PulseSnapshot(rows: [], health: .live).pages(rowLimit: 10)
+        let full = state.snapshot.pages
+        XCTAssertEqual(full.count, 1)
+        XCTAssertEqual(full.first?.rowCount, 11, "The parent label in Ready for review does not take a chat slot")
+
+        var overflow = chat(11)
+        overflow.parentID = main.id; overflow.isSideChat = true
+        state.apply(.observed(overflow), now: epoch)
+        let pages = state.snapshot.pages
+        let ids = pages.map { ($0.review + $0.running).compactMap(\.chat).map(\.id) }
+        XCTAssertEqual(ids.map(\.count), [10, 1])
+        XCTAssertEqual(Set(ids.flatMap { $0 }), Set((1...11).map { chat($0).id }))
+        XCTAssertEqual(pages.last?.running.map(\.id), [main.id, overflow.id])
+        XCTAssertNil(pages.last?.running.first?.chat)
+
+        let empty = PulseSnapshot(rows: [], health: .live).pages
         XCTAssertEqual(empty.count, 1)
-        XCTAssertEqual(empty[0].count, 0)
+        XCTAssertEqual(empty.first?.rowCount, 0)
     }
     func testViewingRunningChatAndRerunningReadyChatKeepOneEntry() {
         var state = PulseState(now: epoch)

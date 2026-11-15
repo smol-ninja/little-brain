@@ -44,7 +44,7 @@ A side chat's immediate parent comes from `forkedFromId`. If absent, a validated
 
 Each section lists its tracked chats and adds parent labels where needed. For example, a running parent can appear as a label above a finished side chat in Ready for review. Closed or idle parents remain as labels while littlebrain tracks their descendants. The tally excludes these extra labels. The panel labels each side chat Side chat. The outline shows each chat once per section, even if parent links form a cycle. Indentation stops after six levels. VoiceOver announces the full depth.
 
-The panel grows to fit its rows up to the screen height. Use the Previous and Next buttons to page through longer lists without scrolling. A new page can repeat parent labels above a side chat. Section counters show totals across all pages.
+The panel shows up to ten tracked chats per page, including side chats. Previous and Next appear when there are more than ten. Parent labels can repeat across pages without taking a chat slot. The panel uses shorter rows on smaller displays to fit the full page without scrolling. Section counters show totals across all pages.
 
 ## Panel behavior
 

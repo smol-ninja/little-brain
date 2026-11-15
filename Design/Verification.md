@@ -18,7 +18,7 @@ After installing a build, check the following in Codex:
 - Create a side chat. Confirm that it appears beneath its parent and uses the label Side chat.
 - Open and close the panel from the center and top edge of the menu bar icon. Repeat several times. Each click should toggle once.
 - Dismiss the panel with Escape, an outside click, and a chat selection.
-- Check a list longer than the screen. The page buttons should reach every chat without scrolling.
+- Check that ten tracked chats fit on one page, including side chats and any parent labels. Add an eleventh chat and use the page buttons to reach it without scrolling.
 - Restart littlebrain. Confirm that tracked chats recover after fresh status arrives. Quit Codex and confirm that littlebrain shows unavailable status instead of completion.
 
 Test the top-edge click by hand if your UI automation tool cannot reach the menu bar.
