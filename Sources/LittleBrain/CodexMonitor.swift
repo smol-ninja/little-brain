@@ -306,7 +306,11 @@ private final class SocketWorker {
             return
         }
         guard method == "thread-stream-state-changed" else { return }
-        guard message["version"] as? Int == 11 else { throw SourceFailure("Codex protocol changed · update needed") }
+        let version = message["version"] as? Int
+        guard version == 11 || version == 13 else {
+            let received = version.map(String.init) ?? "missing"
+            throw SourceFailure("Unsupported Codex status version (\(received)) · update littlebrain")
+        }
         guard let owner = message["sourceClientId"] as? String,
               let change = params["change"] as? [String: Any], let revision = change["revision"] as? Int else {
             throw SourceFailure("Codex state format changed · update needed")

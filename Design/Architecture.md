@@ -27,7 +27,7 @@ The adapter uses Codex's private protocol. A Codex update may require an adapter
 1. Read `~/.codex/state_5.sqlite` every two seconds. Select nonarchived rows with originator `Codex Desktop` or `codex_work_desktop` and source `vscode`, `cli`, or `appServer`. Validate each chat ID as a UUID. Project membership and chat age do not affect discovery. The Work originator fixes the missing Recents chats.
 2. Connect to `~/.codex/ipc/ipc.sock`. Each frame has a UInt32 little-endian length and UTF-8 JSON. Reject frames larger than 64 MiB.
 3. Initialize as `little-brain` and follow each local chat with `thread-stream-following-changed` version 1.
-4. Read `thread-stream-state-changed` version 11 snapshots and patches. Keep the title, runtime status, unread state, turn generation, and parent references. Discard chat bodies.
+4. Read `thread-stream-state-changed` snapshots and patches for versions 11 and 13. Keep the title, runtime status, unread state, turn generation, and parent references. Discard chat bodies.
 5. Accept patches only from the snapshot's sender and at the expected base revision. History patches advance the revision even when the adapter discards their content. A revision gap marks the status stale and requests a snapshot.
 6. Request a snapshot after a read-state broadcast. Only a snapshot or patch from the established sender changes unread state.
 7. Refresh subscriptions every 15 seconds. Disconnects, missing replies, and incompatible data mark the status unavailable.

@@ -12,7 +12,7 @@ The tests cover counter updates, read confirmation, restarts, stale status, side
 
 After installing a build, check the following in Codex:
 
-- Start several local chats. Confirm that littlebrain lists them under Running.
+- Start several local chats, then launch littlebrain while they are running. Confirm that it lists them under Running and the counter stays connected.
 - Let a chat finish. Confirm that it moves to Ready for review and increases the finished count.
 - Open the finished chat. Confirm that Codex's read update removes it. Opening a running chat should keep it listed.
 - Create a side chat. Confirm that it appears beneath its parent and uses the label Side chat.

@@ -169,7 +169,7 @@ final class SocketContractTests: XCTestCase {
         XCTAssertTrue(sideObservations.allSatisfy { $0.isSideChat == true })
     }
 
-    func testFragmentedStreamRevisionGapAndReadInvalidationRecoverThroughOwner() async throws {
+    func testVersion13TracksAnAlreadyRunningChatAndRecoversThroughOwner() async throws {
         let fixture = try SocketFixture()
         defer { fixture.close() }
         let serverFinished = expectation(description: "fixture completed")
@@ -180,35 +180,36 @@ final class SocketContractTests: XCTestCase {
         }
         let source = CodexSource(configuration: .init(codexHome: fixture.home))
         let finished = expectation(description: "source reports disconnect")
-        let collector = Task { () -> ([Observation], Int, Int) in
+        let collector = Task { () -> ([Observation], [String], Int, Int) in
             let archived = TrackedChat(id: ChatID(value: "00000000-0000-4000-8000-000000000002"), title: "Archived while quit", generation: "old", phase: .working, isFresh: true, changedAt: Date())
             var restored = PulseState(restoring: SavedState(monitoringSince: Date(timeIntervalSince1970: 100), rows: [archived], baselines: []))
             var observations: [Observation] = []
+            var labels: [String] = []
             var stale = 0
             for await event in await source.observations() {
                 restored.apply(event)
                 switch event {
-                case .observed(let value): observations.append(value)
+                case .observed(let value):
+                    observations.append(value)
+                    labels.append(restored.snapshot.menuLabel)
                 case .stale: stale += 1
-                case .health(.unavailable):
+                case .health(.unavailable(let reason)):
+                    XCTAssertEqual(reason, "Codex is offline · reconnecting")
                     finished.fulfill()
-                    return (observations, stale, restored.snapshot.totalCount)
+                    return (observations, labels, stale, restored.snapshot.totalCount)
                 default: break
                 }
             }
-            return (observations, stale, restored.snapshot.totalCount)
+            return (observations, labels, stale, restored.snapshot.totalCount)
         }
         await fulfillment(of: [finished, serverFinished], timeout: 8)
         collector.cancel()
-        let (observations, stale, remaining) = await collector.value
+        let (observations, labels, stale, remaining) = await collector.value
         XCTAssertEqual(remaining, 0, "Initial catalog must retire a restored chat archived while Pulse was quit")
         XCTAssertEqual(observations.map(\.runtime), [.active, .idle, .idle, .idle])
         XCTAssertEqual(observations.map(\.unread), [false, true, true, false])
+        XCTAssertEqual(labels, ["0/1", "1/1", "1/1", "0/0"])
         XCTAssertEqual(stale, 1, "A revision gap must invalidate before resnapshot")
-        var state = PulseState(now: Date(timeIntervalSince1970: 100))
-        state.apply(.health(.live))
-        for observation in observations { state.apply(.observed(observation)) }
-        XCTAssertEqual(state.snapshot.menuLabel, "0/0")
     }
 }
 
@@ -280,7 +281,7 @@ private final class SocketFixture: @unchecked Sendable {
         ]])
     }
     func change(_ body: [String:Any]) throws {
-        try send(["type":"broadcast", "method":"thread-stream-state-changed", "version":11, "sourceClientId":"fixture-owner",
+        try send(["type":"broadcast", "method":"thread-stream-state-changed", "version":13, "sourceClientId":"fixture-owner",
                   "params":["conversationId":chatID,"hostId":"local","change":body]])
     }
     func expectFollow() throws {
