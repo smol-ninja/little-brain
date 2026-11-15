@@ -9,6 +9,8 @@ littlebrain tracks local Codex chats in the macOS menu bar. The counter shows fi
 
 ## Setup
 
+See the [littlebrain website](https://smol-ninja.github.io/little-brain/) for the Mac download.
+
 Requires macOS 26 or later and the Codex desktop app. To build from source, use Xcode with the macOS 27 SDK or later.
 
 Ask Codex:
