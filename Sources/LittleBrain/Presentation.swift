@@ -167,10 +167,20 @@ private struct BrainView: View {
 
     private func footer(index: Int, pageCount: Int) -> some View {
         HStack(spacing: 8) {
-            Text("Launch at login")
-                .font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
-            Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
-                .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text("Launch at login")
+                        .foregroundStyle(.secondary)
+                    Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                        .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
+                }
+                if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
+                    Text("v\(version)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Version \(version)")
+                }
+            }
             Spacer()
             if pageCount > 1 {
                 Button { pageIndex = index - 1 } label: {

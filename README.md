@@ -9,7 +9,7 @@ littlebrain tracks local Codex chats in the macOS menu bar. The counter shows fi
 
 ## Setup
 
-Requires macOS 26 or later, Codex, and Xcode with the macOS 27 SDK or later.
+Requires macOS 26 or later and the Codex desktop app. To build from source, use Xcode with the macOS 27 SDK or later.
 
 Ask Codex:
 
@@ -25,4 +25,6 @@ cp -R ../little-brain.app /Applications/
 open /Applications/little-brain.app
 ```
 
-The panel has a Launch at login switch and a power button to quit.
+Once installed, open Codex and littlebrain. Littlebrain connects through the current Mac user's default `~/.codex` directory without further configuration.
+
+The installed version appears below Launch at login in the panel.
