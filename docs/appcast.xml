@@ -1,0 +1,20 @@
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>little-brain</title>
+        <item>
+            <title>1.4.8</title>
+            <pubDate>Sun, 15 Nov 2026 16:44:57 +0000</pubDate>
+            <sparkle:version>15</sparkle:version>
+            <sparkle:shortVersionString>1.4.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description><![CDATA[<p>Update littlebrain from the version button beside Launch at login.</p>]]></description>
+            <enclosure url="https://github.com/smol-ninja/little-brain/releases/download/v1.4.8/littlebrain.dmg" length="3558723" type="application/octet-stream" sparkle:edSignature="du5siSk2grUpbFFGKGfMAvtCUGf+wEmaEd0FuYzptMYwpEUh36XYyHOLer9nJAXmKQlbSHLeVbDOs2fYOe3rDA=="></enclosure>
+        </item>
+    </channel>
+</rss><!-- sparkle-signatures:
+edSignature: /kL01oCJJBUDwDamwhocoTepJLykXuGFTWV+OMwd5oF9iA+a4uiBspdU+cr4VG/IjkC9M5+Ny5i67fces3wOBg==
+length: 1253
+-->
