@@ -15,7 +15,6 @@ import uuid
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSET_NAME = "littlebrain.dmg"
 SPARKLE_NS = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 
 
@@ -78,7 +77,6 @@ def main():
     args = parser.parse_args()
     directory = args.output_directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
-    image = directory / ASSET_NAME
     app = directory / "little-brain.app"
     state_path = directory / "release-state.json"
     build = directory / "build"
@@ -97,7 +95,7 @@ def main():
         if digest(directory / state["archive"]) != state["sha256"]:
             parser.error("The saved DMG changed. Preserve it and use a fresh output directory.")
     else:
-        if image.exists() or app.exists():
+        if app.exists() or any(directory.glob("littlebrain*.dmg")):
             parser.error("Partial build exists. Preserve it and use a fresh output directory.")
         environment = dict(os.environ, LITTLE_BRAIN_APP_PATH=str(app),
                            LITTLE_BRAIN_BUILD_DIR=str(build), LITTLE_BRAIN_SIGN_IDENTITY=args.identity)
@@ -113,6 +111,12 @@ def main():
         save_state(state_path, state)
 
     info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    version = info["CFBundleShortVersionString"]
+    image = directory / f"littlebrain-{version}.dmg"
+    # Keep the original filename when resuming a completed legacy release.
+    legacy_image = directory / "littlebrain.dmg"
+    if state.get("stapled") and not image.exists() and legacy_image.is_file():
+        image = legacy_image
     public_key = run(tools / "generate_keys", "--account", args.sparkle_account, "-p",
                      capture_output=True).stdout.strip()
     if public_key != info["SUPublicEDKey"]:
@@ -162,22 +166,22 @@ def main():
     run("codesign", "--verify", "--strict", image)
     run("spctl", "--assess", "--type", "open", "--context", "context:primary-signature", image)
 
-    version = info["CFBundleShortVersionString"]
     prefix = f"https://github.com/smol-ninja/little-brain/releases/download/v{version}/"
     feed = directory / "appcast.xml"
     with tempfile.TemporaryDirectory(prefix="littlebrain-appcast-") as scratch:
         archives = Path(scratch)
-        shutil.copy2(image, archives / ASSET_NAME)
+        shutil.copy2(image, archives / image.name)
         previous = ROOT / "docs/appcast.xml"
         if previous.exists():
             run(tools / "sign_update", "--account", args.sparkle_account, "--verify", previous)
             shutil.copy2(previous, archives / "appcast.xml")
         if args.release_notes:
-            (archives / "littlebrain.html").write_text(f"<p>{escape(args.release_notes)}</p>", encoding="utf-8")
+            (archives / image.with_suffix(".html").name).write_text(
+                f"<p>{escape(args.release_notes)}</p>", encoding="utf-8")
         run(tools / "generate_appcast", "--account", args.sparkle_account,
             "--maximum-deltas", "0", "--download-url-prefix", prefix, "--embed-release-notes", archives)
         generated = archives / "appcast.xml"
-        verify_feed(generated, image, info, prefix + ASSET_NAME, tools, args.sparkle_account)
+        verify_feed(generated, image, info, prefix + image.name, tools, args.sparkle_account)
         pending_feed = directory / "appcast.pending.xml"
         shutil.copy2(generated, pending_feed)
         pending_feed.replace(feed)

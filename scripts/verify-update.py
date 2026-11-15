@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -14,11 +15,11 @@ args = parser.parse_args()
 release = args.release_directory.resolve()
 tools = release / "build/artifacts/sparkle/Sparkle/bin"
 feed = release / "appcast.xml"
-image = release / "littlebrain.dmg"
-signature = ET.parse(feed).find("channel/item/enclosure").attrib[
-    "{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature"]
 command = [str(tools / "sign_update"), "--account", args.sparkle_account, "--verify"]
 subprocess.run(command + [str(feed)], check=True)
+enclosure = ET.parse(feed).find("channel/item/enclosure")
+image = release / Path(urlsplit(enclosure.attrib["url"]).path).name
+signature = enclosure.attrib["{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature"]
 subprocess.run(command + [str(image), signature], check=True)
 with tempfile.TemporaryDirectory(prefix="littlebrain-tamper-") as directory:
     for original, suffix in [(feed, []), (image, [signature])]:

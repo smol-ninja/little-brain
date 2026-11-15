@@ -1,5 +1,4 @@
 const repository = 'smol-ninja/little-brain';
-const assetName = 'littlebrain.dmg';
 const releasesURL = `https://github.com/${repository}/releases`;
 const button = document.querySelector('#download');
 const unavailable = document.querySelector('#download-unavailable');
@@ -16,10 +15,13 @@ async function showLatestDownload() {
     if (!response.ok) return;
 
     const release = await response.json();
-    const hasInstaller = release.assets.some(asset => asset.name === assetName && asset.state === 'uploaded' && asset.size > 0);
-    if (!hasInstaller) return;
+    const version = release.tag_name.replace(/^v/, '');
+    const installers = release.assets.filter(asset => asset.state === 'uploaded' && asset.size > 0);
+    const installer = installers.find(asset => asset.name === `littlebrain-${version}.dmg`)
+      ?? installers.find(asset => asset.name === 'littlebrain.dmg');
+    if (!installer) return;
 
-    button.href = `${releasesURL}/download/${encodeURIComponent(release.tag_name)}/${assetName}`;
+    button.href = `${releasesURL}/download/${encodeURIComponent(release.tag_name)}/${encodeURIComponent(installer.name)}`;
     unavailable.hidden = true;
     button.hidden = false;
   } catch {

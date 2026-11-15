@@ -205,19 +205,21 @@ private struct BrainView: View {
                     dismiss()
                     updater.checkForUpdates()
                 } label: {
-                    Text("v\(version)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(updater.updateAvailable ? AppBrand.accent : .secondary)
-                        .overlay(alignment: .topTrailing) {
-                            if updater.updateAvailable {
-                                Circle().fill(AppBrand.accent).frame(width: 4, height: 4).offset(x: 5, y: -2)
-                            }
+                    HStack(spacing: 5) {
+                        Text("v\(version)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        if updater.updateAvailable {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(AppBrand.accent)
                         }
+                    }
                 }
                 .disabled(!updater.canCheckForUpdates)
-                .accessibilityLabel("Check for Updates…")
-                .accessibilityValue("Version \(version)" + (updater.updateAvailable ? ", update available" : ""))
-                .help("Check for Updates…")
+                .accessibilityLabel(updater.updateAvailable ? "Download Update…" : "Check for Updates…")
+                .accessibilityValue("Version \(version)")
+                .help(updater.updateAvailable ? "Download Update…" : "Check for Updates…")
             }
             Spacer()
             if pageCount > 1 {
