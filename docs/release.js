@@ -2,7 +2,7 @@ const repository = 'smol-ninja/little-brain';
 const assetName = 'littlebrain.dmg';
 const releasesURL = `https://github.com/${repository}/releases`;
 const button = document.querySelector('#download');
-const status = document.querySelector('#download-status');
+const downloadStatus = document.querySelector('#download-status');
 const source = document.querySelector('#source-link');
 
 async function showLatestDownload() {
@@ -18,11 +18,11 @@ async function showLatestDownload() {
     if (!installer) return;
 
     button.href = `${releasesURL}/download/${encodeURIComponent(release.tag_name)}/${assetName}`;
-    status.textContent = release.tag_name;
+    downloadStatus.textContent = release.tag_name;
     source.hidden = true;
     button.hidden = false;
   } catch {
-    status.textContent = 'Could not check for the Mac installer.';
+    downloadStatus.textContent = 'Could not check for the Mac installer.';
     source.href = releasesURL;
     source.textContent = 'View releases ↗';
   }
