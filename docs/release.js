@@ -4,6 +4,10 @@ const releasesURL = `https://github.com/${repository}/releases`;
 const button = document.querySelector('#download');
 const unavailable = document.querySelector('#download-unavailable');
 
+button.addEventListener('click', () => {
+  window.umami?.track('download_click');
+});
+
 async function showLatestDownload() {
   try {
     const response = await fetch(`https://api.github.com/repos/${repository}/releases/latest`, {
