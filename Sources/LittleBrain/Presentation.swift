@@ -5,18 +5,24 @@ import ServiceManagement
 
 @MainActor final class AppDelegate: NSObject, NSApplicationDelegate {
     private let monitor = PulseMonitor()
+    private let updater = AppUpdater()
     private var menuBar: MenuBarController!
     private var subscription: AnyCancellable?
+    private var updateSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        let hosting = NSHostingView(rootView: BrainView(monitor: monitor, dismiss: { [weak self] in
+        let hosting = NSHostingView(rootView: BrainView(monitor: monitor, updater: updater, dismiss: { [weak self] in
             self?.menuBar.dismiss()
         }))
         hosting.sizingOptions = []
         menuBar = MenuBarController(content: hosting)
         subscription = monitor.$snapshot.sink { [weak self] snapshot in self?.menuBar.update(snapshot) }
+        updateSubscription = updater.$updateAvailable.sink { [weak self] available in
+            self?.menuBar.setUpdateAvailable(available)
+        }
         monitor.start()
+        updater.start()
         if !UserDefaults.standard.bool(forKey: "hasShownWelcome") {
             UserDefaults.standard.set(true, forKey: "hasShownWelcome")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.menuBar.show() }
@@ -65,6 +71,7 @@ enum AppBrand {
 
 private struct BrainView: View {
     @ObservedObject var monitor: PulseMonitor
+    @ObservedObject var updater: AppUpdater
     let dismiss: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -176,10 +183,23 @@ private struct BrainView: View {
             Toggle("Launch at login", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                 .labelsHidden().toggleStyle(.switch).controlSize(.mini).tint(AppBrand.accent)
             if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String {
-                Text("v\(version)")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Version \(version)")
+                Button {
+                    dismiss()
+                    updater.checkForUpdates()
+                } label: {
+                    Text("v\(version)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(updater.updateAvailable ? AppBrand.accent : .secondary)
+                        .overlay(alignment: .topTrailing) {
+                            if updater.updateAvailable {
+                                Circle().fill(AppBrand.accent).frame(width: 4, height: 4).offset(x: 5, y: -2)
+                            }
+                        }
+                }
+                .disabled(!updater.canCheckForUpdates)
+                .accessibilityLabel("Check for Updates…")
+                .accessibilityValue("Version \(version)" + (updater.updateAvailable ? ", update available" : ""))
+                .help("Check for Updates…")
             }
             Spacer()
             if pageCount > 1 {

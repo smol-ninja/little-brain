@@ -23,6 +23,8 @@ private final class BrainPanel: NSPanel {
     private var outsideMonitor: Any?
     private var localMonitor: Any?
     private var rowCount = 0
+    private var updateAvailable = false
+    private var chatLabel = ""
 
     init(content: NSView) {
         super.init()
@@ -64,9 +66,20 @@ private final class BrainPanel: NSPanel {
 
     func update(_ snapshot: PulseSnapshot) {
         rowCount = snapshot.pages.map(\.rowCount).max() ?? 0
-        item.button?.title = snapshot.menuLabel.replacingOccurrences(of: "/", with: " / ")
+        chatLabel = snapshot.menuLabel.replacingOccurrences(of: "/", with: " / ")
+        updateTitle()
         item.button?.setAccessibilityValue("\(snapshot.readyCount) ready, \(snapshot.totalCount) tracked. \(snapshot.health.message)")
         if panel.isVisible { positionPanel() }
+    }
+
+    func setUpdateAvailable(_ available: Bool) {
+        updateAvailable = available
+        updateTitle()
+        item.button?.toolTip = available ? "littlebrain — Update available" : "littlebrain"
+    }
+
+    private func updateTitle() {
+        item.button?.title = chatLabel + (updateAvailable ? " ↑" : "")
     }
 
     @objc private func toggle() {
