@@ -115,7 +115,7 @@ struct PulseSnapshot: Equatable, Sendable {
                 if page.count == limit {
                     result.append(page)
                     page = ChatPage()
-                    // Repeat parent labels so a continued side chat keeps its context.
+                    // Repeat parent labels above a side chat that starts a new page.
                     page[keyPath: key] = ancestors.suffix(limit - 1).map {
                         ChatOutlineRow(context: $0.context, chat: nil, depth: $0.depth)
                     }
@@ -159,7 +159,7 @@ struct PulseSnapshot: Equatable, Sendable {
             for child in children[id] ?? [] { append(child, depth: depth + 1) }
         }
         for id in roots { append(id, depth: 0) }
-        // Malformed ancestry must not hide chats or recurse forever.
+        // A cycle can leave chats without a root. Visit those chats once too.
         for id in order where !visited.contains(id) { append(id, depth: 0) }
         return result
     }
@@ -230,7 +230,7 @@ struct PulseState {
                 guard shouldTrack else { baselines[observation.id] = observation; return }
                 phase = .error
             case .unavailable:
-                // Keep the last state until Codex supplies its status.
+                // Keep the previous phase and mark it stale.
                 if existing != nil { tracked[observation.id]?.isFresh = false }
                 return
             }

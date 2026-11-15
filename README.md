@@ -3,11 +3,9 @@
   <img src="docs/wordmark-light.svg" width="320" alt="littlebrain" />
 </picture>
 
-littlebrain tracks active and unread Codex chats from the macOS menu bar. The counter shows finished unread chats out of all tracked chats. Opening a finished chat clears it. Chats are grouped into Ready for review and Running, with side chats nested beneath their main chat.
+littlebrain tracks local Codex chats in the macOS menu bar. The counter shows finished chats with unread replies out of all tracked chats. A finished chat leaves the count when Codex marks it read. The panel lists chats under Ready for review or Running and shows side chats beneath their parents.
 
-<img src="docs/screenshot.png" width="360" alt="Example chats showing recursive side chat nesting in littlebrain" />
-
-*Example chats.*
+<img src="docs/screenshot.png" width="360" alt="Example littlebrain panel showing side chats beneath their parents" />
 
 ## Setup
 
@@ -27,4 +25,4 @@ cp -R ../little-brain.app /Applications/
 open /Applications/little-brain.app
 ```
 
-Launch at login and the power button are at the bottom of the panel. littlebrain tracks local Codex chats only.
+The panel has a Launch at login switch and a power button to quit.

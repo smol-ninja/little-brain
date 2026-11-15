@@ -21,4 +21,4 @@ After installing a build, check the following in Codex:
 - Check a list longer than the screen. The page buttons should reach every chat without scrolling.
 - Restart littlebrain. Confirm that tracked chats recover after fresh status arrives. Quit Codex and confirm that littlebrain shows unavailable status instead of completion.
 
-Some UI automation tools cannot click menu bar items at the screen edge. A successful panel launch or geometry test does not replace the top-edge click check.
+Test the top-edge click by hand if your UI automation tool cannot reach the menu bar.
