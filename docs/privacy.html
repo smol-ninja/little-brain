@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Privacy policy for the littlebrain website and Mac app.">
+  <meta name="theme-color" content="#f5f6fa">
+  <title>Privacy policy — littlebrain</title>
+  <link rel="icon" href="logo.png" type="image/png">
+  <link rel="stylesheet" href="site.css">
+  <script defer src="https://cloud.umami.is/script.js"
+    data-website-id="cc7bb7fd-ac8d-48dd-9672-465317a88cfa"
+    data-domains="smol-ninja.github.io" data-exclude-search="true" data-exclude-hash="true"></script>
+</head>
+<body class="document">
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Littlebrain home">
+      <img class="brand-icon" src="logo.png" alt="" width="30" height="30">
+      <img src="wordmark-light.svg" alt="littlebrain" width="116" height="19">
+    </a>
+    <a class="text-link" href="https://github.com/smol-ninja/little-brain">View on GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+  <main class="policy" aria-labelledby="policy-title">
+    <h1 id="policy-title">Privacy policy</h1>
+    <p class="effective">Effective 16 November 2026</p>
+
+    <p class="lede">littlebrain is a macOS menu bar app that shows your local Codex chats. This page explains what the website and the app collect, and what they do not. We do not create accounts, show ads, or sell your information. The app reads Codex data only on your Mac and does not send chat content off your machine. The website uses a cookie-free visitor counter, and the app checks for updates over the internet.</p>
+
+    <h2>The website</h2>
+    <p>The littlebrain site is hosted on GitHub Pages.</p>
+
+    <h3>Visitor analytics</h3>
+    <p>The site uses <a href="https://umami.is/">Umami Cloud</a> to count visits and understand how the site is used. Umami’s web tracker does not use cookies.</p>
+    <p>When you load a page, your browser requests Umami’s script from <code>cloud.umami.is</code> and sends a pageview. Clicks on the “Download for Mac” button are also recorded as a <code>download_click</code> event.</p>
+    <p>According to Umami, an analytics record can include the page path, referrer, browser, operating system, device type, language, screen size, and approximate location (country, region, and city). Umami says it does not store visitor IP addresses as fields in analytics records. It does process IP addresses briefly to create an anonymous visitor identifier and to estimate location. Umami and its infrastructure providers may also record IP addresses in operational or security logs, which are separate from the analytics records.</p>
+    <p>The tracker on this site is configured to ignore URL query strings and hash fragments, so values such as <code>?ref=hn</code> are not sent to Umami. Tracking is limited to the <code>smol-ninja.github.io</code> domain.</p>
+    <p>You can read more in Umami’s <a href="https://docs.umami.is/docs/faq">FAQ</a>, <a href="https://docs.umami.is/docs/metric-definitions">metric definitions</a>, and <a href="https://umami.is/privacy">privacy policy</a>.</p>
+
+    <h3>Downloads and GitHub</h3>
+    <p>The “Download for Mac” button points to the installer on GitHub Releases. When the landing page loads, a script also asks GitHub’s API for the latest public release so the button can point to a newer installer if one exists.</p>
+    <p>Those requests go to GitHub, not to us. GitHub’s handling of that information is described in <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub’s privacy statement</a>.</p>
+
+    <h2>The app</h2>
+    <p>littlebrain runs on your Mac. It does not create an account, and it does not include telemetry or crash reporting.</p>
+
+    <h3>Local Codex data</h3>
+    <p>To show running chats and unread replies, the app reads Codex data that is already on your Mac. It connects to a local socket at <code>~/.codex/ipc/ipc.sock</code> and reads a local catalog database at <code>~/.codex/state_5.sqlite</code>. It uses this to show chat titles, status, and unread state, and to open a chat in the Codex app on your Mac.</p>
+    <p>The app stores a small local tracking file in your Application Support folder (<code>little-brain/tracking.json</code>) so it can remember which chats it is watching after a restart. It also saves a local preference for whether the welcome panel has been shown, and an optional “Launch at login” setting. None of this Codex or tracking data is sent off your Mac by the app.</p>
+
+    <h3>Update checks</h3>
+    <p>The app uses the Sparkle framework to check for updates. It automatically fetches a signed update feed from <a href="https://smol-ninja.github.io/little-brain/appcast.xml"><code>https://smol-ninja.github.io/little-brain/appcast.xml</code></a> (hosted on GitHub Pages), by default about once a day, and whenever you click the version number in the app. System profiling is turned off, so the app does not send Sparkle’s optional hardware and system profile with those checks.</p>
+    <p>The app is set not to download or install updates automatically. If an update is available, you can install it from the app. Sparkle then downloads the installer from GitHub Releases, verifies its signature, and installs it. GitHub may process those download requests under its privacy statement.</p>
+    <p>Apart from these update checks and optional update downloads, the app’s own code does not make other network requests.</p>
+
+    <h2>No accounts, ads, or selling</h2>
+    <p>We do not ask you to create an account. We do not show advertising, and we do not sell your information.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, we will update this page and the effective date at the top.</p>
+
+    <h2>Contact</h2>
+    <p>Questions or requests? <a href="https://github.com/smol-ninja/little-brain/issues">Open an issue on GitHub</a>.</p>
+  </main>
+  <footer class="site-footer">
+    <a href="privacy.html">Privacy</a>
+  </footer>
+</body>
+</html>
