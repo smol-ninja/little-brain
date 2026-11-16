@@ -7,8 +7,9 @@
   <meta name="theme-color" content="#f5f6fa">
   <title>littlebrain for Mac</title>
   <link rel="icon" href="logo.png" type="image/png">
-  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="site.css?v=2">
   <script src="release.js?v=3" defer></script>
+  <script src="demo.js" defer></script>
   <script defer src="https://cloud.umami.is/script.js"
     data-website-id="cc7bb7fd-ac8d-48dd-9672-465317a88cfa"
     data-domains="smol-ninja.github.io" data-exclude-search="true" data-exclude-hash="true"></script>
@@ -24,14 +25,22 @@
   <main class="hero" aria-labelledby="hero-title">
     <div class="intro">
       <h1 id="hero-title">Stop tracking your chats.</h1>
-      <p class="description">Littlebrain puts running Codex chats and unread replies in your Mac menu bar.</p>
+      <p class="description">Running Codex chats and unread replies in your Mac menu bar.</p>
       <div class="download">
         <!-- Update this link with the appcast once the new DMG is public. -->
         <a class="button" id="download" href="https://github.com/smol-ninja/little-brain/releases/download/v1.4.10/littlebrain-1.4.10.dmg">Download for Mac <span aria-hidden="true">↓</span></a>
       </div>
     </div>
     <figure class="preview">
-      <img src="screenshot.png" width="720" height="1160" alt="Littlebrain panel with a finished side chat under Ready for review and four chats under Running.">
+      <div class="demo">
+        <picture>
+          <source srcset="demo-poster.png" media="(prefers-reduced-motion: reduce)">
+          <img src="demo.gif" width="920" height="1060" fetchpriority="high" alt="Littlebrain demo: four chats run, three replies become ready, then opening a finished chat clears it from the list. The menu bar count changes from 0/4 to 3/4 to 2/3.">
+        </picture>
+        <button class="demo-toggle" type="button" aria-label="Pause demo" hidden>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 3h3v10H4zm5 0h3v10H9z"/></svg>
+        </button>
+      </div>
     </figure>
   </main>
   <footer class="site-footer">
