@@ -110,7 +110,6 @@ h1 {
   box-shadow: 0 24px 42px #111a3f90, 0 2px 5px #111a3f70;
 }
 
-
 .site-footer {
   display: flex;
   align-items: center;
@@ -136,7 +135,7 @@ h1 {
   color: var(--secondary);
   font-size: .875rem;
 }
-.policy .lede, .policy p {
+.policy p {
   margin-top: 16px;
   color: var(--secondary);
   font-size: 1rem;
